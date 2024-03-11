@@ -395,8 +395,6 @@ class ChatGPT(API):
                 if self.OAI_ONLY:
                     return
 
-            
-                
         ## 动态更新models
         # models = result['models']
         # api_file = 'api.json'
@@ -502,7 +500,7 @@ class ChatGPT(API):
             url = '{}/backend-api/conversations?offset={}&limit={}&order=updated'.format(self.__get_api_prefix(), offset, limit)
             try:
                 resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
-                
+
                 if resp.status_code == 200:
                     result = resp.json()
 
@@ -513,8 +511,6 @@ class ChatGPT(API):
 
                 if self.OAI_ONLY:
                     return
-
-            
 
         if self.LOCAL_OP or ERROR_FLAG == True or resp.status_code != 200:
             result = {
