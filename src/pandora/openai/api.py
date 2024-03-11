@@ -385,6 +385,9 @@ class ChatGPT(API):
             except:
                 ERROR_FLAG = True
 
+                if self.OAI_ONLY:
+                    return
+
             if resp.status_code == 200:
                 result = resp.json()
 
@@ -498,6 +501,9 @@ class ChatGPT(API):
                 resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
             except:
                 ERROR_FLAG = True
+
+                if self.OAI_ONLY:
+                    return
 
             if resp.status_code == 200:
                 result = resp.json()
