@@ -375,13 +375,10 @@ class ChatGPT(API):
     def list_models(self, raw=False, token=None, web_origin=None):
         ERROR_FLAG = False
         self.web_origin = web_origin
-        # Console.debug_b('web_origin: {}'.format(self.web_origin))
 
-        if not self.LOCAL_OP:
-            # url = '{}/api/models'.format(self.__get_api_prefix())
-            url = '{}/backend-api/models'.format(self.__get_api_prefix())
-
+        if self.OAI_ONLY:
             try:
+                url = '{}/backend-api/models'.format(self.__get_api_prefix())
                 resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
 
                 if resp.status_code == 200:
@@ -391,58 +388,45 @@ class ChatGPT(API):
                         return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
             except:
                 ERROR_FLAG = True
+                return
 
-                if self.OAI_ONLY:
-                    return
+        gpt4_model = getenv('PANDORA_GPT4_MODEL')
+        gpt4_category = {
+                        "category": "gpt_4",
+                        "human_category_name": "GPT-4",
+                        "subscription_level": "free",
+                        "default_model": gpt4_model if gpt4_model else "gpt-4",
+                        "plugins_model": gpt4_model if gpt4_model else "gpt-4"
+                    }
 
-        ## 动态更新models
-        # models = result['models']
-        # api_file = 'api.json'
-        # if os.path.exists(API_CONFIG_FILE):
-        #     with open(api_file, 'r', encoding='utf-8') as f:
-        #         API_DATA = json.load(f)
-        #     # print('====================需要加入的API====================')
-        #     # print(API_DATA)
-        #     # print('========================================')
-        
-        if API_DATA:
-            gpt35_model = getenv('PANDORA_GPT35_MODEL')
-            gpt4_model = getenv('PANDORA_GPT4_MODEL')
-            gpt4_category = {
-                            "category": "gpt_4",
-                            "human_category_name": "GPT-4",
-                            "subscription_level": "free",
-                            "default_model": gpt4_model if gpt4_model else "gpt-4",
-                            "plugins_model": gpt4_model if gpt4_model else "gpt-4"
-                        }
-            
-            if self.LOCAL_OP or ERROR_FLAG ==True or resp.status_code != 200:
-                result = {
-                    "models": [
-                        {
-                            "slug": "text-davinci-002-render-sha",
-                            "max_tokens": 8191,
-                            "title": "Default (GPT-3.5)",
-                            "description": "Our fastest model, great for most everyday tasks.",
-                            "tags": [
-                                "gpt3.5"
-                            ],
-                            "capabilities": {},
-                            "product_features": {}
-                        }if not gpt35_model else None
+        result = {
+            "models": [
+                {
+                    "slug": "text-davinci-002-render-sha",
+                    "max_tokens": 8191,
+                    "title": "Default (GPT-3.5)",
+                    "description": "Our fastest model, great for most everyday tasks.",
+                    "tags": [
+                        "gpt3.5"
                     ],
-                    "categories": [
-                        {
-                            "category": "gpt_3.5",
-                            "human_category_name": "GPT-3.5",
-                            "subscription_level": "free",
-                            "default_model": "text-davinci-002-render-sha",
-                            "code_interpreter_model": "text-davinci-002-render-sha-code-interpreter",
-                            "plugins_model": "text-davinci-002-render-sha-plugins"
-                        }
-                    ]
+                    "capabilities": {},
+                    "product_features": {}
                 }
+            ],
+            "categories": [
+                {
+                    "category": "gpt_3.5",
+                    "human_category_name": "GPT-3.5",
+                    "subscription_level": "free",
+                    "default_model": "text-davinci-002-render-sha",
+                    "code_interpreter_model": "text-davinci-002-render-sha-code-interpreter",
+                    "plugins_model": "text-davinci-002-render-sha-plugins"
+                }
+            ]
+        }
+        result['categories'].append(gpt4_category)
 
+        if API_DATA:
             for item in API_DATA.values():
                 title = item['title']
                 slug = item['slug']
@@ -467,31 +451,129 @@ class ChatGPT(API):
 
                 result['models'].append(model_json)
 
-            result['categories'].append(gpt4_category)
+        return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
 
-            # 此操作会导致不显示除3.5&4外的其他模型(Alpha Models), 已在server端重定向
-            # if gpt35_model:
-            #     for category in result['categories']:
-            #         if category['category'] == 'gpt_3.5':
-                        # category['default_model'] = gpt35_model
-                        # category['plugins_model'] = gpt35_model
-                        # category['code_interpreter_model'] = gpt35_model
+    
+    # def list_models(self, raw=False, token=None, web_origin=None):
+    #     ERROR_FLAG = False
+    #     self.web_origin = web_origin
+    #     # Console.debug_b('web_origin: {}'.format(self.web_origin))
 
-            if self.LOCAL_OP or ERROR_FLAG ==True or resp.status_code != 200:
-                return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+    #     if not self.LOCAL_OP or self.OAI_ONLY:
+    #         # url = '{}/api/models'.format(self.__get_api_prefix())
+    #         url = '{}/backend-api/models'.format(self.__get_api_prefix())
 
-            return self.fake_resp(resp, json.dumps(result, ensure_ascii=False))
+    #         try:
+    #             resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
 
-        if raw:
-            # print(resp.text)
-            return resp
+    #             if resp.status_code == 200:
+    #                 result = resp.json()
 
-        if not self.LOCAL_OP and (ERROR_FLAG ==True or resp.status_code != 200):
-            raise Exception('list models failed: ' + self.__get_error(resp))
+    #                 if self.OAI_ONLY:
+    #                     return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+    #         except:
+    #             ERROR_FLAG = True
+
+    #             if self.OAI_ONLY:
+    #                 return
+
+    #     ## 动态更新models
+    #     # models = result['models']
+    #     # api_file = 'api.json'
+    #     # if os.path.exists(API_CONFIG_FILE):
+    #     #     with open(api_file, 'r', encoding='utf-8') as f:
+    #     #         API_DATA = json.load(f)
+    #     #     # print('====================需要加入的API====================')
+    #     #     # print(API_DATA)
+    #     #     # print('========================================')
+        
+    #     if API_DATA and not self.OAI_ONLY:
+    #         gpt35_model = getenv('PANDORA_GPT35_MODEL')
+    #         gpt4_model = getenv('PANDORA_GPT4_MODEL')
+    #         gpt4_category = {
+    #                         "category": "gpt_4",
+    #                         "human_category_name": "GPT-4",
+    #                         "subscription_level": "free",
+    #                         "default_model": gpt4_model if gpt4_model else "gpt-4",
+    #                         "plugins_model": gpt4_model if gpt4_model else "gpt-4"
+    #                     }
+            
+    #         if self.LOCAL_OP or ERROR_FLAG ==True or resp.status_code != 200:
+    #             result = {
+    #                 "models": [
+    #                     {
+    #                         "slug": "text-davinci-002-render-sha",
+    #                         "max_tokens": 8191,
+    #                         "title": "Default (GPT-3.5)",
+    #                         "description": "Our fastest model, great for most everyday tasks.",
+    #                         "tags": [
+    #                             "gpt3.5"
+    #                         ],
+    #                         "capabilities": {},
+    #                         "product_features": {}
+    #                     }if not gpt35_model else None
+    #                 ],
+    #                 "categories": [
+    #                     {
+    #                         "category": "gpt_3.5",
+    #                         "human_category_name": "GPT-3.5",
+    #                         "subscription_level": "free",
+    #                         "default_model": "text-davinci-002-render-sha",
+    #                         "code_interpreter_model": "text-davinci-002-render-sha-code-interpreter",
+    #                         "plugins_model": "text-davinci-002-render-sha-plugins"
+    #                     }
+    #                 ]
+    #             }
+
+    #         for item in API_DATA.values():
+    #             title = item['title']
+    #             slug = item['slug']
+    #             description = item['description']
+    #             max_tokens = item['max_tokens']
+
+    #             model_json = {
+    #                 "capabilities": {},
+    #                 "description": description,
+    #                 "enabled_tools": [
+    #                     "tools",
+    #                     "tools2"
+    #                 ],
+    #                 "max_tokens": max_tokens,
+    #                 "product_features": {},
+    #                 "slug": slug,
+    #                 "tags": [
+    #                     "gpt3.5"
+    #                 ],
+    #                 "title": title
+    #             }
+
+    #             result['models'].append(model_json)
+
+    #         result['categories'].append(gpt4_category)
+
+    #         # 此操作会导致不显示除3.5&4外的其他模型(Alpha Models), 已在server端重定向
+    #         # if gpt35_model:
+    #         #     for category in result['categories']:
+    #         #         if category['category'] == 'gpt_3.5':
+    #                     # category['default_model'] = gpt35_model
+    #                     # category['plugins_model'] = gpt35_model
+    #                     # category['code_interpreter_model'] = gpt35_model
+
+    #         if self.LOCAL_OP or ERROR_FLAG ==True or resp.status_code != 200:
+    #             return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+
+    #         return self.fake_resp(resp, json.dumps(result, ensure_ascii=False))
+
+    #     if raw:
+    #         # print(resp.text)
+    #         return resp
+
+    #     if not self.LOCAL_OP and (ERROR_FLAG ==True or resp.status_code != 200):
+    #         raise Exception('list models failed: ' + self.__get_error(resp))
 
         
-        if 'models' not in result:
-            raise Exception('list models failed: ' + resp.text)
+    #     if 'models' not in result:
+    #         raise Exception('list models failed: ' + resp.text)
 
     def list_conversations(self, offset, limit, raw=False, token=None):
         ERROR_FLAG = False
