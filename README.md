@@ -256,7 +256,7 @@ API配置：
   docker pull gavingooo/pandoraweb:latest
   
   # 仅API模式：
-  docker run -d -p 18008:8008 --restart=unless-stopped --name pandoraweb \
+  docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
   -e PANDORA_SERVER=0.0.0.0:8008 \
   -e PANDORA_SITE_PASSWORD=<Your Site Password> \
   -e PANDORA_HISTORY_COUNT=10 \
@@ -266,7 +266,7 @@ API配置：
   gavingooo/pandoraweb:latest
   	
   # 启用OAI服务：
-  docker run -d -p 18008:8008 --restart=unless-stopped --name pandoraweb \
+  docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
   -e PANDORA_SERVER=0.0.0.0:8008 \
   -e PANDORA_SITE_PASSWORD=<Your Site Password> \
   -e OPENAI_EMAIL=<Your OAI Email> \
