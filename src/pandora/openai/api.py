@@ -296,7 +296,7 @@ class ChatGPT(API):
                 'https': proxy,
             } if proxy else None,
             'verify': where(),
-            'timeout': 100,
+            'timeout': 60,
             'allow_redirects': False,
             'impersonate': 'chrome110',
         }
@@ -380,19 +380,22 @@ class ChatGPT(API):
         if not self.LOCAL_OP:
             # url = '{}/api/models'.format(self.__get_api_prefix())
             url = '{}/backend-api/models'.format(self.__get_api_prefix())
+
             try:
                 resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
+
+                if resp.status_code == 200:
+                    result = resp.json()
+
+                    if self.OAI_ONLY:
+                        return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
             except:
                 ERROR_FLAG = True
 
                 if self.OAI_ONLY:
                     return
 
-            if resp.status_code == 200:
-                result = resp.json()
-
-                if self.OAI_ONLY:
-                    return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+            
                 
         ## 动态更新models
         # models = result['models']
@@ -499,17 +502,19 @@ class ChatGPT(API):
             url = '{}/backend-api/conversations?offset={}&limit={}&order=updated'.format(self.__get_api_prefix(), offset, limit)
             try:
                 resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
+                
+                if resp.status_code == 200:
+                    result = resp.json()
+
+                    if self.OAI_ONLY:
+                        return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
             except:
                 ERROR_FLAG = True
 
                 if self.OAI_ONLY:
                     return
 
-            if resp.status_code == 200:
-                result = resp.json()
-
-                if self.OAI_ONLY:
-                    return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+            
 
         if self.LOCAL_OP or ERROR_FLAG == True or resp.status_code != 200:
             result = {
@@ -1118,7 +1123,7 @@ class ChatCompletion(API):
                 'https': proxy,
             } if proxy else None,
             'verify': where(),
-            'timeout': 600,
+            'timeout': 60,
             'allow_redirects': False,
         }
 
