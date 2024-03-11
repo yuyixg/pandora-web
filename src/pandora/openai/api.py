@@ -550,9 +550,10 @@ class ChatGPT(API):
                         # final_item_json = json.dumps(final_item, ensure_ascii=False)
                         result['items'].append(final_item)
 
-                if not self.LOCAL_OP and resp.status_code == 200:
-                    # 对话列表按更新时间'update_time'倒序重新排序
-                    result['items'] = sorted(result['items'], key=lambda item: item['update_time'], reverse=True)
+                # 对话列表按更新时间'update_time'倒序重新排序
+                result['items'] = sorted(result['items'], key=lambda item: item['update_time'], reverse=True)
+
+                if not self.LOCAL_OP and ERROR_FLAG == False and resp.status_code == 200:
                     result['total'] = convs_data_total if convs_data_total > result['total'] else result['total']
 
                     return self.fake_resp(resp, json.dumps(result, ensure_ascii=False))
@@ -574,7 +575,7 @@ class ChatGPT(API):
                     #         "workspace_id": None
                     #     }
                     # result['items'].insert(0, warning_item)
-                    result['items'] = sorted(result['items'], key=lambda item: item['update_time'], reverse=True)
+
                     result['total'] = convs_data_total
 
                     return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
