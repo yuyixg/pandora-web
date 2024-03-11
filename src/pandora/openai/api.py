@@ -296,7 +296,7 @@ class ChatGPT(API):
                 'https': proxy,
             } if proxy else None,
             'verify': where(),
-            'timeout': 60 if not self.req_timeout else self.req_timeout,
+            'timeout': 60,
             'allow_redirects': False,
             'impersonate': 'chrome110',
         }
@@ -310,6 +310,9 @@ class ChatGPT(API):
         self.logger = logging.getLogger('waitress')
 
         super().__init__(proxy, self.req_kwargs['verify'])
+
+        if self.req_timeout:
+            self.req_kwargs['timeout'] = self.req_timeout
 
     def __get_headers(self, token_key=None):
         return {

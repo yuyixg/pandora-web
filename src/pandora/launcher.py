@@ -203,50 +203,30 @@ def main():
     parser.add_argument(
         '--best_history',
         help='Automatically carries the first pair of history conversations when the total number of history messages is greater than the set number of carried history messages.',
-        required=False,
-        type=str,
-        default=None,
-        action='store',
-        nargs='?',
-        const='True',
+        action='store_true',
     )
     parser.add_argument(
         '--true_del',
         help='Actually delete the conversation instead of setting it hidden (is_visible=0).',
-        required=False,
-        type=str,
-        default=None,
-        action='store',
-        nargs='?',
-        const='True',
+        action='store_true',
     )
     parser.add_argument(
         '-l',
         '--local',
         help='Running locally only, not use OAI service.',
-        required=False,
-        type=str,
-        default=None,
-        action='store',
-        nargs='?',
-        const='True',
+        action='store_true',
     )
     parser.add_argument(
         '--timeout',
-        help='Request timeout, default: 60s',
+        help='Request timeout. Default: 60 Unit: seconds',
         required=False,
         type=str,
-        default=None,
+        default='60',
     )
     parser.add_argument(
         '--oai_only',
         help='Only OAI service.',
-        required=False,
-        type=str,
-        default=None,
-        action='store',
-        nargs='?',
-        const='True',
+        action='store_true',
     )
     parser.add_argument(
         '-t',
@@ -310,22 +290,12 @@ def main():
     parser.add_argument(
         '--old_login',
         help='Use the old login page',
-        required=False,
-        type=str,
-        default=None,
-        action='store',
-        nargs='?',
-        const='True',
+        action='store_true',
     )
     parser.add_argument(
         '--old_chat',
         help='Use the old chat page',
-        required=False,
-        type=str,
-        default=None,
-        action='store',
-        nargs='?',
-        const='True',
+        action='store_true',
     )
     
     args, _ = parser.parse_known_args()
@@ -391,24 +361,24 @@ def main():
         os.environ['PANDORA_GPT35_MODEL'] = args.gpt35
 
     if args.best_history:
-        os.environ['PANDORA_BEST_HISTORY'] = args.best_history
+        os.environ['PANDORA_BEST_HISTORY'] = 'True'
 
     if args.local:
-        os.environ['PANDORA_LOCAL_OPTION'] = args.local
+        os.environ['PANDORA_LOCAL_OPTION'] = 'True'
 
     if args.oai_only:
-        os.environ['PANDORA_OAI_ONLY'] = args.oai_only
+        os.environ['PANDORA_OAI_ONLY'] = 'True'
 
     if args.old_login:
-        os.environ['PANDORA_OLD_LOGIN'] = args.old_login
+        os.environ['PANDORA_OLD_LOGIN'] = 'True'
 
     if args.old_chat:
-        os.environ['PANDORA_OLD_CHAT'] = args.old_chat
+        os.environ['PANDORA_OLD_CHAT'] = 'True'
 
     if args.true_del:
-        os.environ['PANDORA_TRUE_DELETE'] = args.true_del
+        os.environ['PANDORA_TRUE_DELETE'] = 'True'
 
-    if args.timeout:
+    if args.timeout != '60':
         os.environ['PANDORA_TIMEOUT'] = args.timeout
 
     
@@ -436,6 +406,11 @@ def main():
     for arg, value in vars(args).items():
         if arg == 'password' and value is not None:
             value = '******'
+        if arg == 'site_password' and value == 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
+            Console.warn(arg+': ### NO_SITE_PASSWORD_IS_A_DANGEROUS_SETTING!')
+            continue
+        if arg == 'config_dir' and not value:
+            value = USER_CONFIG_DIR
         Console.debug_b(f"{arg}: {value}")
     Console.warn('')
 

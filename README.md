@@ -126,6 +126,8 @@ API配置：
 > Mac OS X: same as user_data_dir (Python appdirs模块的说明)
 > Unix: ~/.config/Pandora-ChatGPT # or in $XDG_CONFIG_HOME, if defined
 > Win : C:\Users\\`<User Name>`\AppData\Local\Pandora-ChatGPT\Pandora-ChatGPT
+>
+> 无论是否设置，启动时都会把路径打印出来
 
 以下是参考模板：
 
