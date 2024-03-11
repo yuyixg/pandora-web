@@ -477,7 +477,7 @@ class ChatGPT(API):
                         # category['plugins_model'] = gpt35_model
                         # category['code_interpreter_model'] = gpt35_model
 
-            if self.LOCAL_OP or resp.status_code != 200:
+            if self.LOCAL_OP or ERROR_FLAG ==True or resp.status_code != 200:
                 return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
 
             return self.fake_resp(resp, json.dumps(result, ensure_ascii=False))
@@ -486,7 +486,7 @@ class ChatGPT(API):
             # print(resp.text)
             return resp
 
-        if not self.LOCAL_OP and resp.status_code != 200:
+        if not self.LOCAL_OP and (ERROR_FLAG ==True or resp.status_code != 200):
             raise Exception('list models failed: ' + self.__get_error(resp))
 
         
