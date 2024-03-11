@@ -117,7 +117,7 @@
 
 API配置：
 
-使用`api.json`文件配置，默认位于用户配置目录，可通过环境变量`USER_CONFIG_DIR`设置/查找
+使用`api.json`文件配置，默认位于用户配置目录，可通过环境变量`USER_CONFIG_DIR`或程序参数`config_dir`设置
 
 > 默认用户配置目录：
 >
@@ -225,6 +225,9 @@ API配置：
   进入项目根目录，运行：
 
   ```
+  # 安装依赖
+  pip install --no-cache-dir -r requirements.txt
+
   # 启用OAI服务：
   python -m src.pandora.launcher -s --email <Your OAI Email> --proxy_api <Your OAI Service Proxy Endpoint> --login_url <Your OAI Login Url> -p <> --site_password <Your Site Password> --history_count 10
   
