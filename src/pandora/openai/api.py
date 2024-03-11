@@ -373,7 +373,6 @@ class ChatGPT(API):
         return self.access_token_key_list
     
     def list_models(self, raw=False, token=None, web_origin=None):
-        ERROR_FLAG = False
         self.web_origin = web_origin
 
         if self.OAI_ONLY:
@@ -384,10 +383,11 @@ class ChatGPT(API):
                 if resp.status_code == 200:
                     result = resp.json()
 
-                    if self.OAI_ONLY:
-                        return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+                    return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+                
+                return
+            
             except:
-                ERROR_FLAG = True
                 return
 
         gpt4_model = getenv('PANDORA_GPT4_MODEL')
