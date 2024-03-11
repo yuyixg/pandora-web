@@ -1,0 +1,18 @@
+{
+  "name": "ChatGPT",
+  "short_name": "ChatGPT",
+  "description": "ChatGPT",
+  "icons": [
+    {
+      "src": "/resources/apple-touch-icon.png",
+      "type": "image/png"
+    }
+  ],
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation":"portrait",
+  "background_color": "#343540",
+  "theme_color": "#343540"
+}

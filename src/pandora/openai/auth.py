@@ -4,11 +4,14 @@ import datetime
 import re
 from datetime import datetime as dt
 from urllib.parse import urlparse, parse_qs
+from os import getenv
 
-import requests
+# import requests
+from curl_cffi import requests
 from certifi import where
 
 from ..exts.config import default_api_prefix
+from .utils import Console
 
 
 class Auth0:
@@ -26,6 +29,7 @@ class Auth0:
             } if proxy else None,
             'verify': where(),
             'timeout': 100,
+            'impersonate': 'safari15_5',
         }
         self.access_token = None
         self.refresh_token = None
@@ -192,14 +196,22 @@ class Auth0:
     def __parse_access_token(self, resp):
         if resp.status_code == 200:
             json = resp.json()
-            if 'access_token' not in json:
+            if 'accessToken' not in json:
                 raise Exception('Get access token failed, maybe you need a proxy.')
 
             if 'refresh_token' in json:
                 self.refresh_token = json['refresh_token']
 
-            self.access_token = json['access_token']
-            self.expires = dt.utcnow() + datetime.timedelta(seconds=json['expires_in']) - datetime.timedelta(minutes=5)
+            self.access_token = json['accessToken']
+
+            # self.expires = dt.utcnow() + datetime.timedelta(seconds=json['expires_in']) - datetime.timedelta(minutes=5)
+
+            # from datetime import datetime
+            # 将 "expires" 字段的值从 ISO 8601 格式的字符串转换为 datetime 对象
+            expires_str = str(json['expires'])
+            expires_timestamp_str = expires_str.replace("Z", "+00:00")
+            expires_timestamp = dt.fromisoformat(expires_timestamp_str)
+            self.expires = expires_timestamp - datetime.timedelta(minutes=5)
             return self.access_token
         else:
             raise Exception(resp.text)
@@ -231,15 +243,32 @@ class Auth0:
         return self.__parse_access_token(resp)
 
     def get_access_token_proxy(self) -> str:
-        url = '{}/auth/login'.format(default_api_prefix())
+        # url = '{}/auth/login'.format(default_api_prefix())
+        # url = '{}/auth/token'.format(default_api_prefix())
+        url = getenv('OPENAI_LOGIN_URL')
         headers = {
             'User-Agent': self.user_agent,
+            'Content-Type': 'application/x-www-form-urlencoded',
         }
         data = {
             'username': self.email,
             'password': self.password,
             'mfa_code': self.mfa,
+            'option': 'web',
         }
+
+        Console.warn('### Logging in now...')
+        # resp = self.session.post(url=url, headers=headers, data=data)
         resp = self.session.post(url=url, headers=headers, data=data, allow_redirects=False, **self.req_kwargs)
 
-        return self.__parse_access_token(resp)
+        if resp.status_code == 200:
+            Console.warn('### Get access token succeed!')
+
+            return self.__parse_access_token(resp)
+        else:
+            Console.error_bh(f'### Get access token failed! Status code: {resp.status_code}')
+            Console.error_bh(f'### Response content: {resp.text}')
+
+            return None
+
+        

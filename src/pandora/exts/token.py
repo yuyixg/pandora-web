@@ -19,7 +19,7 @@ def check_access_token(access_token, api=False):
     if access_token.startswith('fk-'):
         return True
 
-    if api and (access_token.startswith('sk-') or access_token.startswith('pk-')):
+    if api and (access_token.startswith('sk-') or access_token.startswith('pk-') or access_token.startswith('ey')):
         return True
 
     payload = (decode(access_token, key=__public_key, algorithms='RS256', audience=[

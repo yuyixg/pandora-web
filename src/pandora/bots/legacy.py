@@ -6,7 +6,8 @@ import uuid
 import pyperclip
 from rich.prompt import Prompt, Confirm
 
-from .. import __version__
+# from . import __version__
+__version__ = '1.3.2'
 from ..openai.utils import Console
 
 
