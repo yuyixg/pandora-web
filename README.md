@@ -7,6 +7,7 @@
   </p>
 </p>
 
+
 ## 一睹为快
 
 ![login_new](https://github.com/GavinGoo/pandora-web/blob/dev/doc/images/login_new.jpg)
@@ -16,6 +17,8 @@
 ![login_old](https://github.com/GavinGoo/pandora-web/blob/dev/doc/images/login_old.png)
 
 ![PandoraNeverDie](https://github.com/GavinGoo/pandora-web/blob/dev/doc/images/PandoraNeverDie.png)
+
+
 
 
 
@@ -45,6 +48,8 @@
 - Gemini-Pro
 - 某个连夜改成每月仅免费50条消息的模型
 - 其他OpenAI标准输出模型
+
+
 
 
 
@@ -97,7 +102,7 @@
 10. `PANDORA_PROXY`: 代理地址，可以通过命令行参数 `--proxy` 设置。
 11. `PANDORA_GPT4_MODEL`: 从 "api.json" 文件中选择 GPT-4 模型。
 12. `PANDORA_GPT35_MODEL`: 从 "api.json" 文件中选择 GPT-3.5 模型。
-13. `PANDORA_HISTORY_COUNT`: 设置历史消息的数量。
+13. `PANDORA_HISTORY_COUNT`: 设置历史消息的数量，默认为4。
 14. `PANDORA_BEST_HISTORY`: 当历史消息数量大于设定数量时，自动携带第一组历史对话。
 15. `PANDORA_TRUE_DELETE`: **真正地从数据库中**删除对话，而非将其设为隐藏(is_visible=0)。
 16. `PANDORA_LOCAL_OPTION`: 仅API模式，不使用 OAI 服务。
@@ -202,7 +207,7 @@ API配置：
 >
 > `auth`: 模型请求的验证头(智谱家的与某模型会自动处理(`slug`需包含关键词比如`glm`)，直接填入你的Key即可)无则不写`auth`这个键，比如Gemini
 >
-> `proxy`: 指定该模型使用的网络代理(优先级最高)
+> `proxy`: 指定该模型使用的网络代理(优先级最高)(如果使用Docker且网络模式非host,指向本机时请使用`172.17.0.0.1`或内网IP)
 >
 > `prompt`: 你的内置Prompt
 >
@@ -220,6 +225,8 @@ API配置：
 
 
 
+
+
 ## 如何运行
 
 - 本地运行
@@ -231,17 +238,58 @@ API配置：
   ```
   # 安装依赖
   pip install --no-cache-dir -r requirements.txt
-
+  
   # 启用OAI服务：
-  python -m src.pandora.launcher -s --email <Your OAI Email> --proxy_api <Your OAI Service Proxy Endpoint> --login_url <Your OAI Login Url> -p <> --site_password <Your Site Password> --history_count 10
+  python -m src.pandora.launcher -s --email <Your OAI Email> --proxy_api <Your OAI Service Proxy Endpoint> --login_url <Get Access Token Url> --site_password <Your Site Password> --history_count 10
   
   # 仅API模式：
   python -m src.pandora.launcher -s -l --site_password <Your Site Password>
   ```
   
   > 后台运行：`nohup python -m src.pandora.launcher -s -l --site_password <Your Site Password> &`
+  
+  
+  
+- Docker Hub 运行
 
+  ```
+  docker pull gavingooo/pandoraweb:latest
+  
+  # 仅API模式：
+  docker run -d -p 18008:8008 --restart=unless-stopped --name pandoraweb \
+  -e PANDORA_SERVER=0.0.0.0:8008 \
+  -e PANDORA_SITE_PASSWORD=<Your Site Password> \
+  -e PANDORA_HISTORY_COUNT=10 \
+  -e PANDORA_BEST_HISTORY=True \
+  -e PANDORA_LOCAL_OPTION=True \
+  -v $PWD/pandora_web_data:/data \
+  gavingooo/pandoraweb:latest
+  	
+  # 启用OAI服务：
+  docker run -d -p 18008:8008 --restart=unless-stopped --name pandoraweb \
+  -e PANDORA_SERVER=0.0.0.0:8008 \
+  -e PANDORA_SITE_PASSWORD=<Your Site Password> \
+  -e OPENAI_EMAIL=<Your OAI Email> \
+  -e OPENAI_PASSWORD=<Your OAI Password> \
+  -e OPENAI_API_PREFIX=<Your OAI Service Proxy Endpoint> \
+  -e OPENAI_LOGIN_URL=<Get Access Token Url> \
+  -e PANDORA_HISTORY_COUNT=10 \
+  -e PANDORA_BEST_HISTORY=True \
+  -v $PWD/pandora_web_data:/data \
+  gavingooo/pandoraweb:latest
+  ```
 
+  
+
+- Docker 编译运行
+
+  ```
+  git clone -b dev https://github.com/GavinGoo/pandora-web.git
+  cd pandora-web
+  docker build -t pandoraweb .
+  ```
+
+  
 
 
 
