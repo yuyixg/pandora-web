@@ -76,6 +76,7 @@ fi
 
 if [ -n "${PANDORA_TIMEOUT}" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --timeout ${PANDORA_TIMEOUT}"
+fi
 
 if [ -n "${PANDORA_OAI_ONLY}" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --oai_only"
