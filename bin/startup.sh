@@ -41,7 +41,7 @@ fi
 
 # Server mode
 if [ -n "${PANDORA_SERVER}" ]; then
-  PANDORA_ARGS="${PANDORA_ARGS} -s"
+  PANDORA_ARGS="${PANDORA_ARGS} -s ${PANDORA_SERVER}"
   if [ -n "${PANDORA_SITE_PASSWORD}" ]; then
     PANDORA_ARGS="${PANDORA_ARGS} --site_password ${PANDORA_SITE_PASSWORD}"
   fi
