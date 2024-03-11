@@ -41,7 +41,7 @@ fi
 
 # Server mode
 if [ -n "${PANDORA_SERVER}" ]; then
-  PANDORA_ARGS="${PANDORA_ARGS} -s ${PANDORA_SERVER}"
+  PANDORA_ARGS="${PANDORA_ARGS} -s"
   if [ -n "${PANDORA_SITE_PASSWORD}" ]; then
     PANDORA_ARGS="${PANDORA_ARGS} --site_password ${PANDORA_SITE_PASSWORD}"
   fi
@@ -49,11 +49,11 @@ fi
 
 # Model selection
 if [ -n "${PANDORA_GPT4_MODEL}" ]; then
-  PANDORA_ARGS="${PANDORA_ARGS} --gpt4"
+  PANDORA_ARGS="${PANDORA_ARGS} --gpt4 ${PANDORA_GPT4_MODEL}"
 fi
 
 if [ -n "${PANDORA_GPT35_MODEL}" ]; then
-  PANDORA_ARGS="${PANDORA_ARGS} --gpt35"
+  PANDORA_ARGS="${PANDORA_ARGS} --gpt35 ${PANDORA_GPT4_MODEL}"
 fi
 
 # History settings
