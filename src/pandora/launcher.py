@@ -232,6 +232,13 @@ def main():
         const='True',
     )
     parser.add_argument(
+        '--timeout',
+        help='Request timeout, default: 60s',
+        required=False,
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
         '--oai_only',
         help='Only OAI service.',
         required=False,
@@ -401,9 +408,10 @@ def main():
     if args.true_del:
         os.environ['PANDORA_TRUE_DELETE'] = args.true_del
 
-    
-        
+    if args.timeout:
+        os.environ['PANDORA_TIMEOUT'] = args.timeout
 
+    
     Console.debug_b(
         '''
             Pandora - A command-line interface to ChatGPT

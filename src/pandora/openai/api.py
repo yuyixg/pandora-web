@@ -43,7 +43,7 @@ class API:
         self.web_origin = ''
         self.LOCAL_OP = getenv('PANDORA_LOCAL_OPTION')
         self.OAI_ONLY = getenv('PANDORA_OAI_ONLY')
-        # self.conv = LocalConversation()
+        self.req_timeout = getenv('PANDORA_TIMEOUT')
 
         # curl_cffi
         if 'nt' == os.name:
@@ -264,7 +264,7 @@ class API:
                 }if proxy_url else None
 
         async with requests.AsyncSession(verify=self.ca_bundle, proxies=proxy if proxy else self.proxy, impersonate='chrome110') as client:
-            async with client.stream('POST', url, json=data, headers=headers, timeout=60) as resp:
+            async with client.stream('POST', url, json=data, headers=headers, timeout=60 if not self.req_timeout else self.req_timeout) as resp:
                 async for line in self.__process_sse(resp, conversation_id, message_id, model, action, prompt):
                     queue.put(line)
 
@@ -296,7 +296,7 @@ class ChatGPT(API):
                 'https': proxy,
             } if proxy else None,
             'verify': where(),
-            'timeout': 60,
+            'timeout': 60 if not self.req_timeout else self.req_timeout,
             'allow_redirects': False,
             'impersonate': 'chrome110',
         }
@@ -1202,7 +1202,7 @@ class ChatCompletion(API):
                 'https': proxy,
             } if proxy else None,
             'verify': where(),
-            'timeout': 60,
+            'timeout': 60 if not self.req_timeout else self.req_timeout,
             'allow_redirects': False,
         }
 

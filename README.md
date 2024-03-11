@@ -67,6 +67,7 @@
 --best_history: 当历史消息数量大于设定数量时，自动携带第一组历史对话。
 --true_del: 真正地从数据库中，而非将其设为隐藏(is_visible=0)。
 -l/--local: 仅在本地运行，不使用 OAI 服务。
+--timeout: 请求超时，默认60s，单位(秒)。
 --oai_only: 仅使用 OAI 服务。
 -t/--token_file: 指定Access Token字符串。
 --tokens_file: 指定一个存放多Access Token的文件路径。
@@ -100,14 +101,15 @@
 14. `PANDORA_BEST_HISTORY`: 当历史消息数量大于设定数量时，自动携带第一组历史对话。
 15. `PANDORA_TRUE_DELETE`: **真正地从数据库中**删除对话，而非将其设为隐藏(is_visible=0)。
 16. `PANDORA_LOCAL_OPTION`: 仅API模式，不使用 OAI 服务。
-17. `PANDORA_OAI_ONLY`: 仅使用 OAI 服务。
-18. `PANDORA_OLD_LOGIN`: 使用老Pandora登陆页面。
-19. `PANDORA_OLD_CHAT`: 使用老Pandora聊天页面。
-20. `PANDORA_API`: 使用`gpt-3.5-turbo`API请求，**你可能需要向`OpenAI`支付费用**。
-21. `PANDORA_LOGIN_LOCAL`: 使用本地环境登录，**你可能需要一个合适的代理IP以避免账号被风控！**
-22. `PANDORA_VERBOSE`: 显示调试信息，且出错时打印异常堆栈信息，供查错使用。
-23. `PANDORA_THREADS`: server模式的线程数，默认为8。
-24. `PANDORA_CLOUD`: Pandora Cloud模式(原参数，不知还可用否?)。
+17. `PANDORA_TIMEOUT`: 请求超时，默认60s，单位(秒)。
+18. `PANDORA_OAI_ONLY`: 仅使用 OAI 服务。
+19. `PANDORA_OLD_LOGIN`: 使用老Pandora登陆页面。
+20. `PANDORA_OLD_CHAT`: 使用老Pandora聊天页面。
+21. `PANDORA_API`: 使用`gpt-3.5-turbo`API请求，**你可能需要向`OpenAI`支付费用**。
+22. `PANDORA_LOGIN_LOCAL`: 使用本地环境登录，**你可能需要一个合适的代理IP以避免账号被风控！**
+23. `PANDORA_VERBOSE`: 显示调试信息，且出错时打印异常堆栈信息，供查错使用。
+24. `PANDORA_THREADS`: server模式的线程数，默认为8。
+25. `PANDORA_CLOUD`: Pandora Cloud模式(原参数，不知还可用否?)。
 
 > 使用Docker仅配置环境变量即可，无视上述`程序参数`。
 >
