@@ -110,7 +110,7 @@ class API:
         create_time = int(time.time())
         
         if conversation_id is None and model in API_DATA:
-            Console.debug_b('No conversation_id, create and save user conversation.')
+            # Console.debug_b('No conversation_id, create and save user conversation.')
             conversation_id = str(uuid.uuid4())
 
             LocalConversation.create_conversation(conversation_id, prompt, datetime.now(tzutc()).isoformat())
@@ -509,60 +509,63 @@ class ChatGPT(API):
 
         convs_data = LocalConversation.list_conversations(offset, limit)
         # Console.debug_b('Local conversation list: {}'.format(convs_data))
-        if convs_data.get('list_data'):
+        if convs_data:
             convs_data_total = convs_data['total']
 
-            for item in convs_data['list_data']:
-                if item['visible'] == 1 or item['visible'] == '1':
-                    id = item['id']
-                    title = item['title']
-                    create_time = item['create_time']
-                    update_time = item['update_time']
+            if convs_data.get('list_data'):
+                for item in convs_data['list_data']:
+                    if item['visible'] == 1 or item['visible'] == '1':
+                        id = item['id']
+                        title = item['title']
+                        create_time = item['create_time']
+                        update_time = item['update_time']
 
-                    final_item = {
-                        "id": id,
-                        "title": title,
-                        "create_time": create_time,
-                        "update_time": update_time,
-                        "mapping": None,
-                        "current_node": None,
-                        "conversation_template_id": None,
-                        "gizmo_id": None,
-                        "is_archived": False,
-                        "workspace_id": None
-                    }
+                        final_item = {
+                            "id": id,
+                            "title": title,
+                            "create_time": create_time,
+                            "update_time": update_time,
+                            "mapping": None,
+                            "current_node": None,
+                            "conversation_template_id": None,
+                            "gizmo_id": None,
+                            "is_archived": False,
+                            "workspace_id": None
+                        }
 
-                    # final_item_json = json.dumps(final_item, ensure_ascii=False)
-                    result['items'].append(final_item)
+                        # final_item_json = json.dumps(final_item, ensure_ascii=False)
+                        result['items'].append(final_item)
 
-            if not self.LOCAL_OP and resp.status_code == 200:
-                # 对话列表按更新时间'update_time'倒序重新排序
-                result['items'] = sorted(result['items'], key=lambda item: item['update_time'], reverse=True)
-                result['total'] = convs_data_total if convs_data_total > result['total'] else result['total']
+                if not self.LOCAL_OP and resp.status_code == 200:
+                    # 对话列表按更新时间'update_time'倒序重新排序
+                    result['items'] = sorted(result['items'], key=lambda item: item['update_time'], reverse=True)
+                    result['total'] = convs_data_total if convs_data_total > result['total'] else result['total']
 
-                return self.fake_resp(resp, json.dumps(result, ensure_ascii=False))
-                # return self.fake_resp(resp, result)
-            else:
-                # from datetime import timezone
-                # now = datetime.now(timezone.utc).isoformat()
-                ## 当获取oai对话列表失败时, 在对话列表中插入警告项
-                # warning_item = {
-                #         "id": "warning",
-                #         "title": "!!! Get oai convs list failed !!!",
-                #         "create_time": now,
-                #         "update_time": now,
-                #         "mapping": None,
-                #         "current_node": None,
-                #         "conversation_template_id": None,
-                #         "gizmo_id": None,
-                #         "is_archived": False,
-                #         "workspace_id": None
-                #     }
-                # result['items'].insert(0, warning_item)
-                result['items'] = sorted(result['items'], key=lambda item: item['update_time'], reverse=True)
-                result['total'] = convs_data_total
+                    return self.fake_resp(resp, json.dumps(result, ensure_ascii=False))
+                    # return self.fake_resp(resp, result)
+                else:
+                    # from datetime import timezone
+                    # now = datetime.now(timezone.utc).isoformat()
+                    ## 当获取oai对话列表失败时, 在对话列表中插入警告项
+                    # warning_item = {
+                    #         "id": "warning",
+                    #         "title": "!!! Get oai convs list failed !!!",
+                    #         "create_time": now,
+                    #         "update_time": now,
+                    #         "mapping": None,
+                    #         "current_node": None,
+                    #         "conversation_template_id": None,
+                    #         "gizmo_id": None,
+                    #         "is_archived": False,
+                    #         "workspace_id": None
+                    #     }
+                    # result['items'].insert(0, warning_item)
+                    result['items'] = sorted(result['items'], key=lambda item: item['update_time'], reverse=True)
+                    result['total'] = convs_data_total
 
-                return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+                    return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+                
+        return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
 
     def register_websocket(self, request, token=None):
         if self.LOCAL_OP:
@@ -773,11 +776,6 @@ class ChatGPT(API):
 
         if auth:
             headers['Authorization'] = 'Bearer ' + auth
-
-        if API_DATA[prompt_model].get('proxy'):
-            req_kwargs = self.req_kwargs
-            req_kwargs['proxies']['http'] = API_DATA[prompt_model].get('proxy')
-            req_kwargs['proxies']['https'] = API_DATA[prompt_model].get('proxy')
 
         # Console.debug_b('get_text_gen_img_prompt=>url: {}'.format(url))
         # Console.debug_b('get_text_gen_img_prompt=>headers: {}'.format(headers))
