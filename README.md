@@ -9,13 +9,13 @@
 
 ## 一睹为快
 
-![login_new](https://github.com/GavinGoo/pandora-web/tree/dev/doc/images/login_new.jpg)
+![login_new](https://github.com/GavinGoo/pandora-web/blob/dev/doc/images/login_new.jpg)
 
-![chat_new](https://github.com/GavinGoo/pandora-web/tree/dev/doc/images/chat_new.jpg)
+![chat_new](https://github.com/GavinGoo/pandora-web/blob/dev/doc/images/chat_new.jpg)
 
-![login_old](https://github.com/GavinGoo/pandora-web/tree/dev/doc/images/login_old.png)
+![login_old](https://github.com/GavinGoo/pandora-web/blob/dev/doc/images/login_old.png)
 
-![PandoraNeverDie](https://github.com/GavinGoo/pandora-web/tree/dev/doc/images/PandoraNeverDie.png)
+![PandoraNeverDie](https://github.com/GavinGoo/pandora-web/blob/dev/doc/images/PandoraNeverDie.png)
 
 
 
