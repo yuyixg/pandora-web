@@ -373,21 +373,24 @@ class ChatGPT(API):
         return self.access_token_key_list
     
     def list_models(self, raw=False, token=None, web_origin=None):
+        ERROR_FLAG = False
         self.web_origin = web_origin
         # Console.debug_b('web_origin: {}'.format(self.web_origin))
 
         if not self.LOCAL_OP:
             # url = '{}/api/models'.format(self.__get_api_prefix())
             url = '{}/backend-api/models'.format(self.__get_api_prefix())
-            resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
+            try:
+                resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
+            except:
+                ERROR_FLAG = True
+
             if resp.status_code == 200:
                 result = resp.json()
 
                 if self.OAI_ONLY:
                     return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
-        
-        # return result
-
+                
         ## 动态更新models
         # models = result['models']
         # api_file = 'api.json'
@@ -409,7 +412,7 @@ class ChatGPT(API):
                             "plugins_model": gpt4_model if gpt4_model else "gpt-4"
                         }
             
-            if self.LOCAL_OP or resp.status_code != 200:
+            if self.LOCAL_OP or ERROR_FLAG ==True or resp.status_code != 200:
                 result = {
                     "models": [
                         {
@@ -487,10 +490,14 @@ class ChatGPT(API):
             raise Exception('list models failed: ' + resp.text)
 
     def list_conversations(self, offset, limit, raw=False, token=None):
+        ERROR_FLAG = False
         if not self.LOCAL_OP:
             # url = '{}/api/conversations?offset={}&limit={}'.format(self.__get_api_prefix(), offset, limit)
             url = '{}/backend-api/conversations?offset={}&limit={}&order=updated'.format(self.__get_api_prefix(), offset, limit)
-            resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
+            try:
+                resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
+            except:
+                ERROR_FLAG = True
 
             if resp.status_code == 200:
                 result = resp.json()
@@ -498,7 +505,7 @@ class ChatGPT(API):
                 if self.OAI_ONLY:
                     return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
 
-        if self.LOCAL_OP or resp.status_code != 200:
+        if self.LOCAL_OP or ERROR_FLAG == True or resp.status_code != 200:
             result = {
                 'has_missing_conversations': False,
                 'items': [],
