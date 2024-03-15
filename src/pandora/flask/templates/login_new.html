@@ -368,17 +368,22 @@
 <script type="text/javascript">
     window.onload = function() {
         setTimeout(function() {
+            var colormode = document.documentElement.style.colorScheme;
+            var passwordElement = document.getElementsByClassName('password');
+            console.log(colormode);
+            var lableColor = colormode == 'light' ? '#fff' : '#000';
+            var pwColor = colormode == 'light' ? '#000' : '#fff';
             var h2Elements = document.getElementsByTagName('h2');
             for (var i = 0; i < h2Elements.length; i++) {
                 var newDiv = document.createElement('div');
-                newDiv.className = 'mt-5 w-full max-w-[440px] c5862f43e c00e233e1';
+                newDiv.className = 'mt-5 w-full max-w-[440px] c5862f43e c00e233e1 ';
                 newDiv.innerHTML = `
                 <div class="c6aa220bf">
                     <div class="input-wrapper _input-wrapper">
                         <div class="cdc7a5315 c1e9c0ef6 password c61146129 c8425948e" data-action-text="" data-alternate-action-text="">
                             <label class="c9ce156f2 no-js c9febcb74 ce9e5dc62" for="password">Password</label>
-                            <input class="input c9c8aa8c8 c148df2a1" name="password" id="password" type="password" required autoComplete="current-password" autoCapitalize="none" spellCheck="false">
-                            <div class="c9ce156f2 js-required c9febcb74 ce9e5dc62" data-dynamic-label-for="password" aria-hidden="true">Password</div>
+                            <input class="input c9c8aa8c8 c148df2a1" name="password" id="password" style="color: `+pwColor+` !important" type="password" required autoComplete="current-password" autoCapitalize="none" spellCheck="false">
+                            <div class="c9ce156f2 js-required c9febcb74 ce9e5dc62" style="background-color: `+lableColor+` !important" data-dynamic-label-for="password" aria-hidden="true">Password</div>
                             <button type="button" class="c14249a2a ulp-button-icon c9c27edbd _button-icon" data-action="toggle">
                                 <span aria-hidden="true" class="password-icon-tooltip show-password-tooltip">Show password</span>
                                 <span aria-hidden="true" class="password-icon-tooltip hide-password-tooltip hide">Hide password</span>
@@ -393,7 +398,6 @@
 
                 // insert our new div after the h2 tag
                 h2Elements[i].parentNode.insertBefore(newDiv, h2Elements[i].nextSibling);
-
                 var inputElement = newDiv.querySelector('input[name=password]');
                 var passwordDiv = newDiv.querySelector('.password');
                 inputElement.addEventListener('input', function() {
@@ -418,7 +422,7 @@
                 });
 
                 document.querySelector('.font-medium').addEventListener('click', function(event) {
-                    console.log("clicked");
+                    // console.log("clicked");
                     // event.preventDefault();
                     var passwordElement = document.getElementById("password");
                     var password = passwordElement.value;
@@ -439,23 +443,19 @@
                     }).catch(error=>console.error(error))
                 });
             }
-        }, 50); // Wait for 1 second (1000 ms)
+        }, 50);
     };
+
 </script>
 <style id="custom-styles-container">
     :root {
-        --widget-background-color: var(--page-background-color) !important;
-        --link-color: rgba(60,70,255,1) !important;
-        /* --link-color: #3C46FF !important; */
+        --widget-background-color: inherit !important;
+        --link-color: rgba(60,70,255,1) !important
     }
 
     a {
         color: inherit !important;
         font-size: inherit !important;
-    }
-
-    input {
-        color: rgba(255,255,255,var(--tw-text-opacity)) !important
     }
 
     .ce21c41d7 {

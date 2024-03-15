@@ -148,12 +148,15 @@ class API:
                     # break
                     continue
 
-                if 'data: {"message":' == utf8_line[0:17] or 'data: {"id":' == utf8_line[0:12]:
+                if 'data: {"message":' == utf8_line[0:17] or 'data: {"id":' == utf8_line[0:12] or 'data: {"choices":' == utf8_line[0:17]:
                     json_data = json.loads(utf8_line[6:])
 
                     if json_data.get('choices'):
-                        create_time = json_data['created']
-                        msg_id = json_data['id']
+                        if json_data.get('created'):
+                            create_time = json_data['created']
+
+                        if json_data.get('id'):
+                            msg_id = json_data['id']
 
                         if json_data['choices'][0].get('message'):
                             resp_content = json_data['choices'][0]['message']['content']
