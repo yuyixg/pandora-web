@@ -42,6 +42,7 @@
 
 **API模型支持：**
 
+- COP2GPT
 - ChatGLM 4
 - Cloudflare AI文本模型
 - Cloudflare AI文生图模型(`stable-diffusion-xl-base-1.0`,`dreamshaper-8-lcm`,`stable-diffusion-xl-lightning`)
