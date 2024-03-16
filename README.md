@@ -289,6 +289,11 @@ API配置：
   cd pandora-web
   docker build -t pandoraweb .
   ```
+  >arm64的镜像可以使用Github Action打包，参见：
+  >
+  >https://github.com/EmccK/pandora-web/blob/dev/.github/workflows/docker-ghcr.yaml
+  >
+  >感谢[EmccK](https://github.com/EmccK)佬友
 
   
 
