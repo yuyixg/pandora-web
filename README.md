@@ -254,7 +254,7 @@ API配置：
 - Docker Hub 运行
 
   ```
-  docker pull gavingooo/pandoraweb:latest
+  docker pull ghcr.io/gavingooo/pandora-web:dev
   
   # 仅API模式：
   docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
@@ -264,7 +264,7 @@ API配置：
   -e PANDORA_BEST_HISTORY=True \
   -e PANDORA_LOCAL_OPTION=True \
   -v $PWD/pandora_web_data:/data \
-  gavingooo/pandoraweb:latest
+  ghcr.io/gavingooo/pandora-web:dev
   	
   # 启用OAI服务：
   docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
@@ -277,7 +277,7 @@ API配置：
   -e PANDORA_HISTORY_COUNT=10 \
   -e PANDORA_BEST_HISTORY=True \
   -v $PWD/pandora_web_data:/data \
-  gavingooo/pandoraweb:latest
+  ghcr.io/gavingooo/pandora-web:dev
   ```
 
   
@@ -289,11 +289,6 @@ API配置：
   cd pandora-web
   docker build -t pandoraweb .
   ```
-  >arm64的镜像可以使用Github Action打包，参见：
-  >
-  >https://github.com/EmccK/pandora-web/blob/dev/.github/workflows/docker-ghcr.yaml
-  >
-  >感谢[EmccK](https://github.com/EmccK)佬友
 
   
 
