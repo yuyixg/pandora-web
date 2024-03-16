@@ -255,7 +255,9 @@ API配置：
 
   ```
   docker pull ghcr.io/gavingooo/pandora-web:dev
+  ```
   
+  ```
   # 仅API模式：
   docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
   -e PANDORA_SERVER=0.0.0.0:8008 \
