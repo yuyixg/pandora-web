@@ -254,7 +254,7 @@ API配置：
 - Docker Hub 运行
 
   ```
-  docker pull gavingooo/pandoraweb:dev
+  docker pull ghcr.io/gavingooo/pandora-web:dev
   
   # 仅API模式：
   docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
@@ -264,7 +264,7 @@ API配置：
   -e PANDORA_BEST_HISTORY=True \
   -e PANDORA_LOCAL_OPTION=True \
   -v $PWD/pandora_web_data:/data \
-  gavingooo/pandoraweb:dev
+  ghcr.io/gavingooo/pandora-web:dev
   	
   # 启用OAI服务：
   docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
@@ -277,7 +277,7 @@ API配置：
   -e PANDORA_HISTORY_COUNT=10 \
   -e PANDORA_BEST_HISTORY=True \
   -v $PWD/pandora_web_data:/data \
-  gavingooo/pandoraweb:dev
+  ghcr.io/gavingooo/pandora-web:dev
   ```
 
   
