@@ -71,7 +71,7 @@
 --gpt35: 从 "api.json" 文件中选择 GPT-3.5 的请求模型。
 --history_count: 为 API 携带的历史消息数量。默认为4。
 --best_history: 当历史消息数量大于设定数量时，自动携带第一组历史对话。
---true_del: 真正地从数据库中，而非将其设为隐藏(is_visible=0)。
+--true_del: 真正从数据库中删除对话，而非将其设为隐藏(is_visible=0)。
 -l/--local: 仅在本地运行，不使用 OAI 服务。
 --timeout: 请求超时，默认60s，单位(秒)。
 --oai_only: 仅使用 OAI 服务。
@@ -105,7 +105,7 @@
 12. `PANDORA_GPT35_MODEL`: 从 "api.json" 文件中选择 GPT-3.5 模型。
 13. `PANDORA_HISTORY_COUNT`: 设置历史消息的数量，默认为4。
 14. `PANDORA_BEST_HISTORY`: 当历史消息数量大于设定数量时，自动携带第一组历史对话。
-15. `PANDORA_TRUE_DELETE`: **真正地从数据库中**删除对话，而非将其设为隐藏(is_visible=0)。
+15. `PANDORA_TRUE_DELETE`: **真正从数据库中**删除对话，而非将其设为隐藏(is_visible=0)。
 16. `PANDORA_LOCAL_OPTION`: 仅API模式，不使用 OAI 服务。
 17. `PANDORA_TIMEOUT`: 请求超时，默认60s，单位(秒)。
 18. `PANDORA_OAI_ONLY`: 仅使用 OAI 服务。
