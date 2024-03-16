@@ -183,6 +183,7 @@ API配置：
         "url": "https://api.cloudflare.com/client/v4/accounts/<Your Cloudflare Account ID>/ai/run",
         "image_model": "@cf/stabilityai/stable-diffusion-xl-base-1.0",
         "prompt_model": "glm-4",
+        "prompt": "You are a professional ai prompt generator, now please seriously realize the scene and atmosphere of the text and generate an AI drawing prompt about '<Prompt>', please don't show any Chinese, if there is any Chinese, it will be automatically translated to English. Finally, you can output the main content of the prompt directly.",
         "auth": "<Your Cloudflare AI Key>",
         "title": "cfai(文生图)",
         "description": "cfai(文生图)",
