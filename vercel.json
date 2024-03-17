@@ -1,5 +1,8 @@
 {
     "name": "pandora-web",
+    "env": {
+        "BRANCH": "alpha"
+    },
     "builds": [
       {
         "src": "src/pandora/launcher.py",
