@@ -14,16 +14,16 @@ with open('requirements_api.txt', 'r', encoding='utf-8') as f:
     requirements_api = f.read().split('\n')
 
 setup(
-    name='Pandora-ChatGPT',
+    name='Pandora-Web',
     version=__version__,
     python_requires='>=3.7',
-    author='Neo Peng',
-    author_email='admin@zhile.io',
-    keywords='OpenAI ChatGPT ChatGPT-Plus gpt-3.5-turbo gpt-3.5-turbo-0301',
-    description='A command-line interface to ChatGPT',
+    author='Gavin Goo',
+    author_email='',
+    keywords='OpenAI ChatGPT API Web',
+    description='Web with access to OAI front-end agent + API',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/zhile-io/pandora',
+    url='https://github.com/GavinGoo/pandora-web',
     packages=find_packages('src'),
     package_dir={'pandora': 'src/pandora'},
     include_package_data=True,
@@ -39,8 +39,8 @@ setup(
         ]
     },
     project_urls={
-        'Source': 'https://github.com/zhile-io/pandora',
-        'Tracker': 'https://github.com/zhile-io/pandora/issues',
+        'Source': 'https://github.com/GavinGoo/pandora-web',
+        'Tracker': 'https://github.com/GavinGoo/pandora-web/issues',
     },
     classifiers=[
         'Development Status :: 5 - Production/Stable',
