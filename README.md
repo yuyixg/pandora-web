@@ -42,6 +42,7 @@
 
 **API模型支持：**
 
+- COP2GPT
 - ChatGLM 4
 - Cloudflare AI文本模型
 - Cloudflare AI文生图模型(`stable-diffusion-xl-base-1.0`,`dreamshaper-8-lcm`,`stable-diffusion-xl-lightning`)
@@ -70,7 +71,7 @@
 --gpt35: 从 "api.json" 文件中选择 GPT-3.5 的请求模型。
 --history_count: 为 API 携带的历史消息数量。默认为4。
 --best_history: 当历史消息数量大于设定数量时，自动携带第一组历史对话。
---true_del: 真正地从数据库中，而非将其设为隐藏(is_visible=0)。
+--true_del: 真正从数据库中删除对话，而非将其设为隐藏(is_visible=0)。
 -l/--local: 仅在本地运行，不使用 OAI 服务。
 --timeout: 请求超时，默认60s，单位(秒)。
 --oai_only: 仅使用 OAI 服务。
@@ -104,7 +105,7 @@
 12. `PANDORA_GPT35_MODEL`: 从 "api.json" 文件中选择 GPT-3.5 模型。
 13. `PANDORA_HISTORY_COUNT`: 设置历史消息的数量，默认为4。
 14. `PANDORA_BEST_HISTORY`: 当历史消息数量大于设定数量时，自动携带第一组历史对话。
-15. `PANDORA_TRUE_DELETE`: **真正地从数据库中**删除对话，而非将其设为隐藏(is_visible=0)。
+15. `PANDORA_TRUE_DELETE`: **真正从数据库中**删除对话，而非将其设为隐藏(is_visible=0)。
 16. `PANDORA_LOCAL_OPTION`: 仅API模式，不使用 OAI 服务。
 17. `PANDORA_TIMEOUT`: 请求超时，默认60s，单位(秒)。
 18. `PANDORA_OAI_ONLY`: 仅使用 OAI 服务。
@@ -182,6 +183,7 @@ API配置：
         "url": "https://api.cloudflare.com/client/v4/accounts/<Your Cloudflare Account ID>/ai/run",
         "image_model": "@cf/stabilityai/stable-diffusion-xl-base-1.0",
         "prompt_model": "glm-4",
+        "prompt": "You are a professional ai prompt generator, now please seriously realize the scene and atmosphere of the text and generate an AI drawing prompt about '<Prompt>', please don't show any Chinese, if there is any Chinese, it will be automatically translated to English. Finally, you can output the main content of the prompt directly.",
         "auth": "<Your Cloudflare AI Key>",
         "title": "cfai(文生图)",
         "description": "cfai(文生图)",
@@ -253,8 +255,10 @@ API配置：
 - Docker Hub 运行
 
   ```
-  docker pull gavingooo/pandoraweb:latest
+  docker pull ghcr.io/gavingooo/pandora-web:dev
+  ```
   
+  ```
   # 仅API模式：
   docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
   -e PANDORA_SERVER=0.0.0.0:8008 \
@@ -263,7 +267,7 @@ API配置：
   -e PANDORA_BEST_HISTORY=True \
   -e PANDORA_LOCAL_OPTION=True \
   -v $PWD/pandora_web_data:/data \
-  gavingooo/pandoraweb:latest
+  ghcr.io/gavingooo/pandora-web:dev
   	
   # 启用OAI服务：
   docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
@@ -276,7 +280,7 @@ API配置：
   -e PANDORA_HISTORY_COUNT=10 \
   -e PANDORA_BEST_HISTORY=True \
   -v $PWD/pandora_web_data:/data \
-  gavingooo/pandoraweb:latest
+  ghcr.io/gavingooo/pandora-web:dev
   ```
 
   
@@ -296,6 +300,7 @@ API配置：
 ## 其他说明
 
 * 本二改项目是站在zhile与其他巨人的肩膀上，感谢！！
+* 感谢[EmccK](https://github.com/EmccK)佬友对本项目的帮助
 
 * 本人代码水平太糟糕了，在此表示抱歉
 
