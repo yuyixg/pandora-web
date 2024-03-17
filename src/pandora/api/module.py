@@ -35,6 +35,15 @@ class LocalConversation:
         for item in API_DATA.values():
             slug = item['slug']
 
+            if item['url'].find('<Your Google AI Key>') != -1:
+                item['url'] = item['url'].replace('<Your Google AI Key>', getenv('GOOGLE_KEY'))
+
+            if item['url'].find('<Your Cloudflare Account ID>') != -1:
+                item['url'] = item['url'].replace('<Your Cloudflare Account ID>', getenv('CF_ID'))
+
+            if item['url'].find('<REPLACE>') != -1:
+                item['url'] = item['url'].replace('<REPLACE>', getenv(slug+'_REPLACE'))
+
             os.environ[slug + '_URL'] = item['url']
             # Console.debug_b('{}  |  URL  |  {}'.format(slug, item['url']))
             if item.get('auth'):
@@ -45,6 +54,12 @@ class LocalConversation:
                     API_AUTH_DATA[slug] = __auth_generator(item['auth'])
                 else:
                     API_AUTH_DATA[slug] = __auth_generator([item['auth']])
+
+            elif getenv(slug+'_AUTH'):
+                auth = getenv(slug+'_AUTH')
+                if auth:
+                    auth_list = auth.split(',')
+                    API_AUTH_DATA[slug] = __auth_generator(auth_list)
 
     @staticmethod
     def get_url(model):

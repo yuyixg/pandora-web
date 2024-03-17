@@ -1,0 +1,16 @@
+{
+    "name": "pandora-web",
+    "builds": [
+      {
+        "src": "src/pandora/launcher.py",
+        "use": "@vercel/python:3.8.12"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/(.*)",
+        "dest": "src/pandora/launcher.py"
+      }
+    ]
+  }
+  

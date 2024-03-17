@@ -1,0 +1,52 @@
+{
+    "glm-4": {
+        "slug": "glm-4",
+        "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        "auth": "<智谱AI Token>",
+        "title": "ChatGLM-4",
+        "description": "ChatGLM-4",
+        "max_tokens": 8191 
+    },
+    "cogview-3": {
+        "slug": "cogview-3",
+        "url": "https://open.bigmodel.cn/api/paas/v4/images/generations",
+        "auth": "<智谱AI Token>",
+        "title": "CogView(文生图|收费)",
+        "description": "刚开始没留意这玩意不是消耗token额度，现在倒欠3块大洋还没还",
+        "max_tokens": 8191 
+    },
+    "gemini-pro": {
+        "slug": "gemini-pro",
+        "url": "https://generativelanguage.googleapis.com/v1/models/gemini-pro:streamGenerateContent?key=<REPLACE>",
+        "title": "Gemini-Pro",
+        "description": "Gemini-Pro",
+        "max_tokens": 8191 
+    },
+    "llama-2-7b-chat-fp16": {
+        "slug": "llama-2-7b-chat-fp16",
+        "url": "https://api.cloudflare.com/client/v4/accounts/<Your Cloudflare Account ID>/ai/run/@cf/meta/llama-2-7b-chat-fp16",
+        "auth": "<Your Cloudflare AI Key>",
+        "title": "Cloudflare AI",
+        "description": "llama-2-7b-chat-fp16",
+        "max_tokens": 8191 
+    },
+    "stable-diffusion-xl-base-1.0": {
+        "slug": "stable-diffusion-xl-base-1.0",
+        "url": "https://api.cloudflare.com/client/v4/accounts/<Your Cloudflare Account ID>/ai/run",
+        "image_model": "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+        "prompt_model": "glm-4",
+        "auth": "<Your Cloudflare AI Key>",
+        "title": "Cloudflare AI(文生图)",
+        "description": "stable-diffusion-xl-base-1.0",
+        "max_tokens": 8191 
+    },
+    "gpt-4": {
+        "slug": "gpt-4",
+        "url": "<Your API Url>",
+        "auth": ["鸡", "你", "太", "美"],
+        "prompt": "You use the GPT-4 version of OpenAI’s GPT models.Respond in the following locale: zh-cn.",
+        "title": "GPT-4",
+        "description": "GPT-4",
+        "max_tokens": 8191 
+    }
+}

@@ -177,7 +177,7 @@ def main():
         help='Use a proxy. Format: protocol://user:pass@ip:port',
         required=False,
         type=str,
-        default=None,
+        default=getenv("PANDORA_PROXY"),
     )
     parser.add_argument(
         '--gpt4',
@@ -258,7 +258,7 @@ def main():
         help='Start as a proxy server. Format: ip:port, default: 0.0.0.0:8008',
         required=False,
         type=str,
-        default=None,
+        default=getenv("PANDORA_SERVER"),
         action='store',
         nargs='?',
         const='0.0.0.0:8008',
@@ -313,19 +313,19 @@ def main():
     if not api_prefix:
         if args.proxy_api:
             os.environ['OPENAI_API_PREFIX'] = args.proxy_api
-        elif not args.local:
+        elif not args.local or getenv('PANDORA_LOCAL_OPTION'):
             raise Exception('No args.proxy_api or env.OPENAI_API_PREFIX !')
         
     if not login_url:
         if args.login_url:
             os.environ['OPENAI_LOGIN_URL'] = args.login_url
-        elif not args.local:
+        elif not args.local or getenv('PANDORA_LOCAL_OPTION'):
             raise Exception('No args.login_url or env.OPENAI_LOGIN_URL !')
         
     if not email:
         if args.email:
             os.environ['OPENAI_EMAIL'] = args.email
-        elif not args.local:
+        elif not args.local or getenv('PANDORA_LOCAL_OPTION'):
             raise Exception('No args.email or env.OPENAI_EMAIL !')
         
     if not user_config_dir:
@@ -463,8 +463,8 @@ def main():
     else:
         chatgpt = ChatGPT(access_tokens, args.proxy)
 
-    if args.server:
-        return ChatBotServer(chatgpt, args.verbose).run(args.server, args.threads)
+    if args.server or getenv("PANDORA_SERVER"):
+        return ChatBotServer(chatgpt, args.verbose).run(args.server or getenv("PANDORA_SERVER"), args.threads or int(getenv("PANDORA_THREADS", 8)))
 
     ChatBotLegacy(chatgpt).run()
 
