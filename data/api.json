@@ -6,13 +6,6 @@
         "description": "ChatGLM-4",
         "max_tokens": 8191 
     },
-    "cogview-3": {
-        "slug": "cogview-3",
-        "url": "https://open.bigmodel.cn/api/paas/v4/images/generations",
-        "title": "CogView(文生图|收费)",
-        "description": "刚开始没留意这玩意不是消耗token额度，现在倒欠3块大洋还没还",
-        "max_tokens": 8191 
-    },
     "gemini-pro": {
         "slug": "gemini-pro",
         "url": "https://generativelanguage.googleapis.com/v1/models/gemini-pro:streamGenerateContent?key=<REPLACE>",
