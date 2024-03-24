@@ -1,4 +1,24 @@
 {
+    "glm-4v": {
+        "slug": "glm-4v",
+        "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        "auth": "<智谱AI Token>",
+        "title": "ChatGLM-4V",
+        "description": "ChatGLM-4V",
+        "upload": true,
+        "file_base64": true,
+        "history_count": 10,
+        "max_tokens": 8191 
+    },
+    "kimi": {
+        "slug": "kimi",
+        "url": "http://172.17.0.1:8000/v1/chat/completions",
+        "auth": "<Your Refresh Token>",
+        "title": "Kimi",
+        "description": "Kimi",
+        "upload": true,
+        "max_tokens": 8191 
+    },
     "coze": {
         "slug": "coze",
         "url": "<Coze-Discord-Proxy Url>",

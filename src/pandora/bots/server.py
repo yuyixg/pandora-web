@@ -12,6 +12,7 @@ from waitress import serve
 from werkzeug.exceptions import default_exceptions
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.serving import WSGIRequestHandler
+from werkzeug.utils import secure_filename
 from datetime import datetime
 import re
 
@@ -62,7 +63,6 @@ class ChatBot:
             Console.warn('### You have not set the site password, which is very dangerous!')
             Console.warn('### You have not set the site password, which is very dangerous!')
             Console.warn('### You have not set the site password, which is very dangerous!')
-
         else:
             app.secret_key = 'PandoraWeb'
             app.config["SESSION_TYPE"] = "filesystem"
@@ -103,6 +103,14 @@ class ChatBot:
         app.route('/backend-api/conversation/<conversation_id>', methods=['DELETE', 'PATCH'])(self.del_or_rename_conversation)
         # app.route('/backend-api/conversation/<conversation_id>', methods=['PATCH'])(self.set_conversation_title)
         app.route('/backend-api/conversation/gen_title/<conversation_id>', methods=['POST'])(self.gen_conversation_title)
+
+        app.route('/backend-api/files', methods=['POST'])(self.file_start_upload)
+        app.route('/files/<file_id>', methods=['OPTION', 'PUT'])(self.file_upload)
+        app.route('/backend-api/files/<file_id>/uploaded', methods=['POST'])(self.file_ends_upload)
+        app.route('/backend-api/files/<file_id>/download', methods=['GET'])(self.file_upload_download)
+        app.route('/backend-api/files/<file_id>', methods=['GET'])(self.get_file_upload_info)   # Except for the img file
+        app.route('/files/<file_id>/<file_name>', methods=['GET'])(self.file_download)
+
         app.route('/backend-api/register-websocket', methods=['POST'])(self.register_websocket)
         app.route('/backend-api/conversation', methods=['POST'])(self.talk)
         app.route('/backend-api/conversation/regenerate', methods=['POST'])(self.regenerate)
@@ -293,7 +301,7 @@ class ChatBot:
                 'picture': None,
                 'groups': []
             },
-            'expires': '2089-08-08T23:59:59.999Z',
+            'expires': '2083-02-17T13:58:59.999Z',
             'accessToken': 'secret',
             "authProvider": "auth0",
         }
@@ -383,7 +391,7 @@ class ChatBot:
                 "subscription_id": "00000000-0000-0000-0000-000000000001",
                 "has_active_subscription": True,
                 "subscription_plan": "chatgptplusplan",
-                "expires_at": "2029-02-24T15:49:46+00:00",
+                "expires_at": "2083-02-17T13:58:59+00:00",
                 "billing_period": None
             },
             "last_active_subscription": {
@@ -447,7 +455,7 @@ class ChatBot:
                 "subscription_id": "00000000-0000-0000-0000-000000000001",
                 "has_active_subscription": True,
                 "subscription_plan": "chatgptplusplan",
-                "expires_at": "2029-02-24T15:49:46+00:00",
+                "expires_at": "2083-02-17T13:58:59+00:00",
                 "billing_period": None
             },
             "last_active_subscription": {
@@ -466,15 +474,17 @@ class ChatBot:
         return jsonify(data)
 
     def list_models(self):
-        referer = request.headers.get('Referer')
-        origin = re.match(r'(https?://[^/]+)', referer)
-        if origin is not None:
-            origin = origin.group(0)
-        else:
-            origin = ''
+        # referer = request.headers.get('Referer')
+        # origin = re.match(r'(https?://[^/]+)', referer)
+        # if origin is not None:
+        #     origin = origin.group(0)
+        # else:
+        #     origin = ''
+
+        web_origin = request.host_url[:-1]
         # Console.warn('origin: {}'.format(origin))
         
-        return self.__proxy_result(self.chatgpt.list_models(True, self.__get_token_key(), origin))
+        return self.__proxy_result(self.chatgpt.list_models(True, self.__get_token_key(), web_origin))
     
     @staticmethod
     def fake_conversation_limit():
@@ -505,7 +515,7 @@ class ChatBot:
                 'account_user_role': 'account-owner',
                 'was_paid_customer': True,
                 'has_customer_object': True,
-                'subscription_expires_at_timestamp': 3774355199
+                'subscription_expires_at_timestamp': 3570069539
             },
             'user_country': 'US',
             'features': [
@@ -536,8 +546,8 @@ class ChatBot:
                     "email": "admin@openai.com",
                     "name": "PandoraWeb",
                     "picture": None,
-                    "created": 1679041742,
-                    "phone_number": "+8008208820",
+                    "created": 1675749539,
+                    "phone_number": "+1675749539",
                     "platform_ui_refresh": True,
                     "mfa_flag_enabled": False,
                     "groups": [],
@@ -547,7 +557,7 @@ class ChatBot:
                             {
                                 "object": "organization",
                                 "id": "org-E15zUlff1mzdOp3LP9v4cUJe",
-                                "created": 1679041742,
+                                "created": 1675749539,
                                 "title": "Personal",
                                 "name": "user-000000000000000000000000",
                                 "description": "Personal org for admin@openai.com",
@@ -705,28 +715,76 @@ class ChatBot:
 
         return self.__proxy_result(
             self.chatgpt.gen_conversation_title(conversation_id, message_id, True, self.__get_token_key()))
+    
+    def file_start_upload(self):
+        web_origin = request.host_url[:-1]
+        payload = request.json
+        file_name = payload['file_name']
+        file_size = payload['file_size']
+
+        return self.__proxy_result(
+            self.chatgpt.file_start_upload(file_name, file_size, web_origin))
+    
+    def file_upload(self, file_id):
+        if request.method == 'OPTIONS':  # 预检请求
+            return '', 200  # 返回200表示允许后续的请求
+        
+        elif request.method == 'PUT':  # 文件上传请求
+            file = request.data
+            file_type = request.headers.get('Content-Type')
+            if file:
+                return self.__proxy_result(
+                        self.chatgpt.file_upload(file_id, file_type, file))
+                
+    def file_ends_upload(self, file_id):
+        web_origin = request.host_url[:-1]
+
+        return self.__proxy_result(
+                        self.chatgpt.file_ends_upload(file_id, web_origin))
+    
+    def file_upload_download(self, file_id):
+        web_origin = request.host_url[:-1]
+
+        return self.__proxy_result(
+                        self.chatgpt.file_upload_download(file_id, web_origin))
+    
+    def get_file_upload_info(self, file_id):
+        return self.__proxy_result(
+                        self.chatgpt.get_file_upload_info(file_id))
+
+    
+    def file_download(self, file_id, file_name):
+        if not getenv('PANDORA_FILE_ACCESS') == 'True':
+            if not session.get("logged_in"):
+                return redirect("/login")
+            
+        return send_from_directory(USER_CONFIG_DIR+'/files/'+file_id, file_name)
 
     def talk(self):
+        web_origin = request.host_url[:-1]
         payload = request.json
-        try:
-            prompt = payload['messages'][0]['content']['parts'][0]
-            model = payload['model']
-            message_id = payload['messages'][0]['id']
-        except KeyError:
-            # 兼容旧ui参数
-            prompt = payload['prompt']
-            model = payload['model']
-            message_id = payload['message_id']
+        model = payload['model']
 
-        parent_message_id = payload['parent_message_id']
-        conversation_id = payload.get('conversation_id')
+        # try:
+        #     prompt = payload['messages'][0]['content']['parts'][0]
+        #     model = payload['model']
+        #     message_id = payload['messages'][0]['id']
+        # except KeyError:
+        #     # 兼容旧ui参数
+        #     prompt = payload['prompt']
+        #     model = payload['model']
+        #     message_id = payload['message_id']
+
+        # parent_message_id = payload['parent_message_id']
+        # conversation_id = payload.get('conversation_id')
+
         stream = payload.get('stream', True)
 
         if model == 'text-davinci-002-render-sha':
             gpt35_model = getenv('PANDORA_GPT35_MODEL')
             if not gpt35_model:
-
-                return self.__proxy_result(self.chatgpt.chat_ws(payload, self.__get_token_key()))
+                OAI_Device_ID = request.headers.get('Oai-Device-Id')
+                return self.__proxy_result(self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID))
             
             else:
                 model = gpt35_model
@@ -734,9 +792,13 @@ class ChatBot:
         # if model == 'stable-diffusion-xl-base-1.0' or model == 'dreamshaper-8-lcm' or model == 'stable-diffusion-xl-lightning':
         #     return self.__proxy_result(self.chatgpt.cfai_text2img(payload, self.__get_token_key()))
 
+        # return self.__process_stream(
+        #     *self.chatgpt.talk(prompt, model, message_id, parent_message_id, conversation_id, stream,
+        #                        self.__get_token_key()), stream)
+                
         return self.__process_stream(
-            *self.chatgpt.talk(prompt, model, message_id, parent_message_id, conversation_id, stream,
-                               self.__get_token_key()), stream)
+            *self.chatgpt.talk(payload, stream,
+                               self.__get_token_key(), web_origin), stream)
 
     def goon(self):
         payload = request.json
@@ -796,11 +858,18 @@ class ChatBot:
     @staticmethod
     def __process_stream(status, headers, generator, stream):
         if stream:
+            # status = 200
+            if status != 200:
+                import json
+
+                fake_resp = API.error_fallback(json.dumps(status))
+                return ChatBot.__proxy_result(fake_resp)
+            
             return Response(API.wrap_stream_out(generator, status), mimetype=headers['Content-Type'], status=status)
 
         last_json = None
-        for json in generator:
-            last_json = json
+        for _json in generator:
+            last_json = _json
 
         return make_response(last_json, status)
 
@@ -812,6 +881,12 @@ class ChatBot:
             remote_resp.status = 404
             remote_resp.text = b''
             remote_resp.content_type = 'text/html; charset=utf-8'
+
+        if remote_resp == 201:  # 文件上传
+            remote_resp = Response()
+            remote_resp.status = 201
+            remote_resp.text = b''
+            remote_resp.content_type = ''
 
         resp = make_response(remote_resp.text)
         resp.content_type = remote_resp.headers['Content-Type']

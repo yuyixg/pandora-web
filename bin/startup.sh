@@ -90,6 +90,26 @@ if [ -n "${PANDORA_OLD_CHAT}" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --old_chat"
 fi
 
+if [ -n "${PANDORA_FILE_SIZE}" ]; then
+  PANDORA_ARGS="${PANDORA_ARGS} --file_size ${PANDORA_FILE_SIZE}"
+fi
+
+if [ -n "${PANDORA_TYPE_WHITELIST}" ]; then
+  PANDORA_ARGS="${PANDORA_ARGS} --type_whitelist ${PANDORA_TYPE_WHITELIST}"
+fi
+
+if [ -n "${PANDORA_TYPE_BLACKLIST}" ]; then
+  PANDORA_ARGS="${PANDORA_ARGS} --type_blacklist ${PANDORA_TYPE_BLACKLIST}"
+fi
+
+if [ -n "${PANDORA_FILE_ACCESS}" ]; then
+  PANDORA_ARGS="${PANDORA_ARGS} --file_access ${PANDORA_FILE_ACCESS}"
+fi
+
+if [ -n "${OPENAI_DEVICE_ID}" ]; then
+  PANDORA_ARGS="${PANDORA_ARGS} --device_id ${OPENAI_DEVICE_ID}"
+fi
+
 if [ -n "${PANDORA_API}" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} -a"
 fi

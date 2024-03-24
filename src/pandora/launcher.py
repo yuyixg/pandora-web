@@ -297,6 +297,41 @@ def main():
         help='Use the old chat page',
         action='store_true',
     )
+    parser.add_argument(
+        '--file_size',
+        help='Limit upload file size. Unit: MB(Integer)',
+        required=False,
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        '--type_whitelist',
+        help='Limit upload file type as whitelist.',
+        required=False,
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        '--type_blacklist',
+        help='Limit upload file type as blacklist.',
+        required=False,
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        '--file_access',
+        help='Uploaded file is accessible on the Internet. Default: False',
+        required=False,
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        '--device_id',
+        help='OAI Device ID for OAI service.',
+        required=False,
+        type=str,
+        default=None,
+    )
     
     args, _ = parser.parse_known_args()
     __show_verbose = args.verbose
@@ -312,6 +347,8 @@ def main():
 
     if not api_prefix:
         if args.proxy_api:
+            # if args.proxy_api == 'https://chat.openai.com' and not args.device_id:
+            #     raise Exception('You are using the official OAI service but No args.device_id or env.OPENAI_DEVICE_ID !')
             os.environ['OPENAI_API_PREFIX'] = args.proxy_api
         elif not args.local or getenv('PANDORA_LOCAL_OPTION'):
             raise Exception('No args.proxy_api or env.OPENAI_API_PREFIX !')
@@ -319,8 +356,8 @@ def main():
     if not login_url:
         if args.login_url:
             os.environ['OPENAI_LOGIN_URL'] = args.login_url
-        elif not args.local or getenv('PANDORA_LOCAL_OPTION'):
-            raise Exception('No args.login_url or env.OPENAI_LOGIN_URL !')
+        # elif not args.local or getenv('PANDORA_LOCAL_OPTION'):
+        #     raise Exception('No args.login_url or env.OPENAI_LOGIN_URL !')
         
     if not email:
         if args.email:
@@ -375,11 +412,26 @@ def main():
     if args.old_chat:
         os.environ['PANDORA_OLD_CHAT'] = 'True'
 
+    if args.file_size:
+        os.environ['PANDORA_FILE_SIZE'] = args.file_size
+
+    if args.type_whitelist:
+        os.environ['PANDORA_TYPE_WHITELIST'] = args.type_whitelist
+
+    if args.type_blacklist:
+        os.environ['PANDORA_TYPE_BLACKLIST'] = args.type_blacklist
+
+    if args.file_access:
+        os.environ['PANDORA_FILE_ACCESS'] = args.file_access
+
     if args.true_del:
         os.environ['PANDORA_TRUE_DELETE'] = 'True'
 
     if args.timeout != '60':
         os.environ['PANDORA_TIMEOUT'] = args.timeout
+
+    if args.device_id:
+        os.environ['OPENAI_DEVICE_ID'] = args.device_id
 
     
     Console.debug_b(
@@ -406,12 +458,17 @@ def main():
     for arg, value in vars(args).items():
         if arg == 'password' and value is not None:
             value = '******'
-        if arg == 'site_password' and value == 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
-            Console.warn(arg+': ### NO_SITE_PASSWORD_IS_A_DANGEROUS_SETTING!')
-            continue
         if arg == 'config_dir' and not value:
             value = USER_CONFIG_DIR
+        if arg == 'file_size' and value:
+            value = value + ' MB'
+        if arg == 'file_access' and value != 'True':
+            value = 'False'
         Console.debug_b(f"{arg}: {value}")
+        if arg == 'site_password' and value == 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
+            Console.warn(arg+': ### NO_SITE_PASSWORD_IS_A_DANGEROUS_SETTING!')
+        if arg == 'proxy_api' and value == 'https://chat.openai.com':
+            Console.warn('### Please be sure to pay attention to the environmental risk control, and ONLY recommend the use of non-valuable account!')
     Console.warn('')
 
     if args.api:

@@ -4,8 +4,8 @@
             "id": "user-000000000000000000000000",
             "name": "admin@openai.com",
             "email": "admin@openai.com",
-            "image": "https://s.gravatar.com/avatar/c682d0cb961f7f716b80a4f839b728b7?s=480&r=pg&d=https%3A%2F%2Fcdn.auth0.com%2Favatars%2Fg1.png",
-            "picture": "https://s.gravatar.com/avatar/c682d0cb961f7f716b80a4f839b728b7?s=480&r=pg&d=https%3A%2F%2Fcdn.auth0.com%2Favatars%2Fg1.png",
+            "image": "https://s.gravatar.com/avatar/c682d0cb961f7f716b80a4f839b728b7?s=480&r=pg&d=https%3A%2F%2Fcdn.auth0.com%2Favatars%2Fp.png",
+            "picture": "https://s.gravatar.com/avatar/c682d0cb961f7f716b80a4f839b728b7?s=480&r=pg&d=https%3A%2F%2Fcdn.auth0.com%2Favatars%2Fp.png",
             "idp": "auth0",
             "iat": 1708264051,
             "mfa": false,
@@ -354,7 +354,7 @@
                 "user_hash": "2965309063"
             },
             "user": {
-                "country": "JP",
+                "country": "US",
                 "custom": {
                     "auth_status": "logged_in",
                     "is_paid": true
@@ -364,12 +364,12 @@
                     "DeviceId": "b5a392ab-2a7d-49bd-87d2-3c945d48176a",
                     "stableID": "b5a392ab-2a7d-49bd-87d2-3c945d48176a"
                 },
-                "ip": "2a0c:9a40:965f:21eb:414c:a10c:c10d:3299",
-                "locale": "zh-CN",
+                "ip": "12.88.211.88",
+                "locale": "US",
                 "privateAttributes": {
                     "email": "admin@openai.com"
                 },
-                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.0.0",
                 "userID": "user-000000000000000000000000"
             }
         },

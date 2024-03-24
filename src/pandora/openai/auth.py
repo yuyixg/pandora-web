@@ -246,6 +246,9 @@ class Auth0:
         # url = '{}/auth/login'.format(default_api_prefix())
         # url = '{}/auth/token'.format(default_api_prefix())
         url = getenv('OPENAI_LOGIN_URL')
+        if not url:
+            return None
+        
         headers = {
             'User-Agent': self.user_agent,
             'Content-Type': 'application/x-www-form-urlencoded',

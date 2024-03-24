@@ -13,14 +13,18 @@ import json
 from requests.models import Response
 import jwt
 
-API_CONFIG_FILE = USER_CONFIG_DIR + '/api.json'
+API_CONFIG_FILE = (USER_CONFIG_DIR + '/api.json') if not getenv('PANDORA_SERVERLESS') else join(os.path.dirname(os.path.abspath(__file__)), '../../../data/api.json')
 API_DATA = []
 API_AUTH_DATA = {}
+UPLOAD_TYPE_WHITELIST = []
+UPLOAD_TYPE_BLACKLIST = []
 
 class LocalConversation:
     global API_DATA
     global API_AUTH_DATA
     global API_CONFIG_FILE
+    global UPLOAD_TYPE_WHITELIST
+    global UPLOAD_TYPE_BLACKLIST
 
     if os.path.exists(API_CONFIG_FILE):
         with open(API_CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -60,6 +64,19 @@ class LocalConversation:
                 if auth:
                     auth_list = auth.split(',')
                     API_AUTH_DATA[slug] = __auth_generator(auth_list)
+
+
+        # PANDORA_TYPE_WHITELIST = getenv('PANDORA_TYPE_WHITELIST')
+        # PANDORA_TYPE_BLACKLIST = getenv('PANDORA_TYPE_BLACKLIST')
+        # Console.debug(f"PANDORA_TYPE_WHITELIST: {PANDORA_TYPE_WHITELIST}")
+        # Console.debug(f"PANDORA_TYPE_BLACKLIST: {PANDORA_TYPE_BLACKLIST}")
+        # if PANDORA_TYPE_WHITELIST:
+        #     UPLOAD_TYPE_WHITELIST = PANDORA_TYPE_WHITELIST.split(',')
+        #     Console.warn(f"PANDORA_TYPE_WHITELIST: {UPLOAD_TYPE_WHITELIST}")
+
+        # if PANDORA_TYPE_BLACKLIST:
+        #     UPLOAD_TYPE_BLACKLIST = PANDORA_TYPE_BLACKLIST.split(',')
+        #     Console.warn(f"PANDORA_TYPE_BLACKLIST: {UPLOAD_TYPE_BLACKLIST}")
 
     @staticmethod
     def get_url(model):
@@ -208,9 +225,14 @@ class LocalConversation:
 
     @staticmethod
     def check_conversation_exist(conversation_id):
-        conversation_info = convs_database_cursor.execute("SELECT id FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
+        try:
+            conversation_info = convs_database_cursor.execute("SELECT id FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
 
-        return conversation_info
+            return conversation_info
+        
+        except Exception as e:
+            Console.warn(f'check_conversation_exist ERROR: {str(e)}')
+            return None
 
     @staticmethod
     def get_conversation(conversation_id, share=False):   
@@ -285,6 +307,7 @@ class LocalConversation:
                 message_id = item[1]
                 role = item[2]
                 message = item[3]
+                # parts = item[3]
                 model = item[4]
                 message_create_time = item[5]
                 message_create_time_unix = parse(message_create_time).timestamp()
@@ -311,9 +334,7 @@ class LocalConversation:
                             "update_time": None,
                             "content": {
                                 "content_type": "text",
-                                "parts": [
-                                    message
-                                ]
+                                "parts": [message]
                             },
                             "status": "finished_successfully",
                             "end_turn": True,
@@ -325,36 +346,40 @@ class LocalConversation:
                         "children": []
                 }
 
+                # try:
+                #     parts = eval(parts)
+                #     mapping_item['message']['content']['parts'] = parts
+                # except Exception:
+                #     mapping_item['message']['content']['parts'] = [parts]
+
+                parts, attachments = LocalConversation.get_conversations_attachments(message_id)
+                if attachments:
+                    # Console.debug_b(f'get_conversation: {message_id} attachments: {str(attachments)}')
+                    mapping_item['message']['metadata']['attachments'] = attachments
+                    mapping_item['message']['content']['parts'] = parts
+
                 if children:
                     mapping_item['children'].append(children)
 
                 if role == 'user':
-                    metadata = {
-                        "request_id": "Pandora-SIN",
-                        "timestamp_": "absolute",
-                        "message_type": None
-                    }
+                    mapping_item['message']['metadata']['request_id'] = "Pandora-SIN"
+                    mapping_item['message']['metadata']['timestamp_'] = "absolute"
+                    mapping_item['message']['metadata']['message_type'] = None
 
                 if role == 'assistant':
-                    metadata = {
-                        "finish_details": {
-                            "type": "stop",
-                            "stop_tokens": [
-                                100260
-                            ]
-                        },
-                        "citations": [],
-                        "gizmo_id": None,
-                        "is_complete": True,
-                        "message_type": None,
-                        "model_slug": model,
-                        "parent_id": parent,
-                        "request_id": "Pandora-SIN",
-                        "timestamp_": "absolute"
-                    }
+                    mapping_item['message']['metadata']['finish_details'] = {"type": "stop", "stop_tokens": [100260]}
+                    mapping_item['message']['metadata']['citations'] = []
+                    mapping_item['message']['metadata']['gizmo_id'] = None
+                    mapping_item['message']['metadata']['is_complete'] = True
+                    mapping_item['message']['metadata']['message_type'] = None
+                    mapping_item['message']['metadata']['model_slug'] = model
+                    mapping_item['message']['metadata']['parent_id'] = parent
+                    mapping_item['message']['metadata']['request_id'] = "Pandora-SIN"
+                    mapping_item['message']['metadata']['timestamp_'] = "absolute"
                     
                 # Console.debug_b('第{}条对话parent: {}'.format(i+1, parent))
-                mapping_item['message']['metadata'] = metadata
+                
+                # mapping_item['message']['metadata'] = metadata
                 base['mapping'][message_id] = mapping_item
                 # Console.debug_b('role: {}   ||   msg: {}'.format(base['mapping'][message_id]['message']['author']['role'], base['mapping'][message_id]['message']['content']['parts'][0]))
 
@@ -372,12 +397,12 @@ class LocalConversation:
         return
 
     @staticmethod
-    def get_history_conversation(conversation_id):
-            history_count = getenv('PANDORA_HISTORY_COUNT')
+    def get_history_conversation(conversation_id, model_history_count=None):
+            history_count = str(model_history_count) if model_history_count else getenv('PANDORA_HISTORY_COUNT')
             
             history_data = convs_database_cursor.execute(
                 """
-                SELECT role, message 
+                SELECT message_id, role, message 
                 FROM (
                     SELECT * 
                     FROM (
@@ -509,3 +534,123 @@ class LocalConversation:
                 f.write(chunk)
 
         return resp_content
+    
+
+    @staticmethod
+    def create_file_upload(file_id, file_name, file_size, create_time):
+        # convs_database_cursor.execute("DROP TABLE IF EXISTS files_upload")
+        # convs_database.commit()
+
+        convs_database_cursor.execute('''
+            CREATE TABLE IF NOT EXISTS files_upload (
+                file_id TEXT PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                file_type TEXT,
+                create_time TEXT NOT NULL
+            )
+        ''')
+
+
+        convs_database_cursor.execute("INSERT INTO files_upload (file_id, file_name, file_size, create_time) VALUES (?, ?, ?, ?)",
+            (file_id, file_name, file_size, create_time)
+        )
+        
+        convs_database.commit()
+
+    @staticmethod
+    def get_file_upload_info(file_id):
+        file_name, file_size, file_type, create_time = convs_database_cursor.execute("SELECT file_name, file_size, file_type, create_time FROM files_upload WHERE file_id=?", (file_id,)).fetchone()
+
+        return file_name, int(file_size), file_type, create_time
+    
+    @staticmethod
+    def get_file_upload_type(file_id):
+        file_name, file_type = convs_database_cursor.execute("SELECT file_name, file_type FROM files_upload WHERE file_id=?", (file_id,)).fetchone()
+
+        return file_name, file_type
+    
+    @staticmethod
+    def update_file_upload_type(file_id, file_type):
+        convs_database_cursor.execute("UPDATE files_upload SET file_type = ? WHERE file_id=?;",(file_type, file_id))
+
+        convs_database.commit()
+    
+    def save_file_upload(file_id, file_type, file):
+        LocalConversation.update_file_upload_type(file_id, file_type)
+
+        resource_path = USER_CONFIG_DIR + '/files/' + file_id
+
+        if not os.path.exists(resource_path):
+            os.makedirs(resource_path)
+            
+        file_name, file_size, file_type, create_time = LocalConversation.get_file_upload_info(file_id)
+        file_path = join(resource_path, file_name)
+
+        with open(file_path, 'wb') as f:
+            # async for chunk in resp.aiter_bytes():  # httpx
+            # for chunk in file:
+            f.write(file)
+
+        return
+
+    @staticmethod
+    def save_conversations_file(message_id, conversation_id, parts, attachments, file_path, file_type):
+        # convs_database_cursor.execute("DROP TABLE IF EXISTS conversations_file")
+        # convs_database.commit()
+
+        convs_database_cursor.execute('''
+            CREATE TABLE IF NOT EXISTS conversations_file (
+                message_id TEXT NOT NULL,
+                conversation_id TEXT,
+                parts TEXT  PRIMARY KEY,
+                attachments TEXT NOT NULL,
+                file_path TEXT,
+                file_type TEXT
+            )
+        ''')
+        try:
+            convs_database_cursor.execute("INSERT INTO conversations_file (message_id, conversation_id, parts, attachments, file_path, file_type) VALUES (?, ?, ?, ?, ?, ?)",
+                (message_id, conversation_id, parts, attachments, file_path, file_type)
+            )
+
+            convs_database.commit()
+        except Exception as e:
+            Console.warn(str(e))
+        
+    @staticmethod
+    def get_conversations_attachments(message_id):
+        try:
+            parts_str, attachments_str = convs_database_cursor.execute("SELECT parts, attachments FROM conversations_file WHERE message_id=?", (message_id,)).fetchone()
+
+            if attachments_str:
+                attachments = eval(attachments_str)
+                parts = eval(parts_str)
+                # Console.debug_b(f'message_id: {message_id}  ||  parts: {parts_str}  ||  attachments: {attachments_str}')
+
+                return parts, attachments
+            
+            return None, None
+        except:
+            return None, None
+        
+    @staticmethod
+    def get_history_conversation_attachments(conversation_id):
+        convs_data = convs_database_cursor.execute("SELECT message_id, file_path, file_type FROM conversations_file WHERE conversation_id=?", (conversation_id,)).fetchall()
+
+        if convs_data:
+            convs_dict = {}
+            for row in convs_data:
+                message_id = row[0]
+                file_path = row[1]
+                file_type = row[2]
+
+                if convs_dict.get(message_id):
+                    convs_dict[message_id].append({'file_path': file_path, 'file_type': file_type})
+                else:
+                    convs_dict[message_id] = [{'file_path': file_path, 'file_type': file_type}]
+
+            return convs_dict
+        
+        return None
+        
