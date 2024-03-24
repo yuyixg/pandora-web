@@ -315,7 +315,7 @@
 - Docker Hub 运行
 
   ```
-  docker pull ghcr.io/gavingooo/pandora-web:dev
+  docker pull ghcr.io/gavingoo/pandora-web:dev
   ```
 
   ```
@@ -327,7 +327,7 @@
   -e PANDORA_BEST_HISTORY=True \
   -e PANDORA_LOCAL_OPTION=True \
   -v $PWD/pandora_web_data:/data \
-  ghcr.io/gavingooo/pandora-web:dev
+  ghcr.io/gavingoo/pandora-web:dev
   
   # 0324使用OAI服务(先将Access Token填入access_token.dat文件)：
   ## 如果不希望API模型走代理，可在api.json文件中为每个模型配置: "proxy":""
@@ -338,7 +338,7 @@
   -e PANDORA_HISTORY_COUNT=10 \
   -e PANDORA_BEST_HISTORY=True \
   -v $PWD/pandora_web_data:/data \
-  ghcr.io/gavingooo/pandora-web:dev
+  ghcr.io/gavingoo/pandora-web:dev
   	
   # 启用OAI服务：
   docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
@@ -351,7 +351,7 @@
   -e PANDORA_HISTORY_COUNT=10 \
   -e PANDORA_BEST_HISTORY=True \
   -v $PWD/pandora_web_data:/data \
-  ghcr.io/gavingooo/pandora-web:dev
+  ghcr.io/gavingoo/pandora-web:dev
   ```
 
   
