@@ -12,9 +12,7 @@ from waitress import serve
 from werkzeug.exceptions import default_exceptions
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.serving import WSGIRequestHandler
-from werkzeug.utils import secure_filename
 from datetime import datetime
-import re
 
 from .. import __version__
 from ..exts.hooks import hook_logging
