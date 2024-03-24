@@ -362,8 +362,8 @@ def main():
     if not email:
         if args.email:
             os.environ['OPENAI_EMAIL'] = args.email
-        elif not args.local or getenv('PANDORA_LOCAL_OPTION'):
-            raise Exception('No args.email or env.OPENAI_EMAIL !')
+        # elif not args.local or getenv('PANDORA_LOCAL_OPTION'):
+        #     raise Exception('No args.email or env.OPENAI_EMAIL !')
         
     if not user_config_dir:
         if args.config_dir:
