@@ -335,6 +335,7 @@
   -e PANDORA_SERVER=0.0.0.0:8008 \
   -e PANDORA_SITE_PASSWORD=<Your Site Password> \
   -e OPENAI_API_PREFIX=https://chat.openai.com \
+  -e PANDORA_PROXY=<你的网络代理地址> \
   -e PANDORA_HISTORY_COUNT=10 \
   -e PANDORA_BEST_HISTORY=True \
   -v $PWD/pandora_web_data:/data \
