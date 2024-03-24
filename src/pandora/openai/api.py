@@ -47,6 +47,7 @@ class API:
         self.LOCAL_OP = getenv('PANDORA_LOCAL_OPTION')
         self.OAI_ONLY = getenv('PANDORA_OAI_ONLY')
         self.req_timeout = getenv('PANDORA_TIMEOUT')
+        self.PANDORA_DEBUG = getenv('PANDORA_DEBUG')
 
         # curl_cffi
         if 'nt' == os.name:
@@ -133,7 +134,7 @@ class API:
         msg_id = str(uuid.uuid4())
         create_time = int(time.time())
 
-        # SHOW_RESP_MSG = False  # dev
+        SHOW_RESP_MSG = False  # dev
 
         if not BLOB_FLAGE:
             async for utf8_line in resp.aiter_lines():
@@ -141,9 +142,9 @@ class API:
                     utf8_line = utf8_line.decode('utf-8')
                 
                 # dev
-                # if not SHOW_RESP_MSG:
-                #     Console.debug_b('{}'.format(utf8_line))
-                #     SHOW_RESP_MSG = True
+                if not SHOW_RESP_MSG and self.PANDORA_DEBUG == 'True':
+                    Console.debug_b(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + '{}'.format(utf8_line))
+                    SHOW_RESP_MSG = True
 
                 # 适配Real-Coze-API
                 if '{"content"' == utf8_line[0:10] or b'{"content"' == utf8_line[0:10]:
@@ -302,7 +303,10 @@ class API:
                 queue.put(None)
 
     def _request_sse(self, url, headers, data, conversation_id=None, message_id=None, model=None, action=None, prompt=None):
-        # Console.warn('data: {}'.format(json.dumps(data))[:300]) # dev
+        if self.PANDORA_DEBUG == 'True':
+            data_str = json.dumps(data, ensure_ascii=False)[:500]
+            Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + 'data: {}'.format(data_str)) # dev
+
         queue, e = block_queue.Queue(), threading.Event()
         t = threading.Thread(target=asyncio.run, args=(self._do_request_sse(url, headers, data, queue, e, conversation_id, message_id, model, action, prompt),))
         t.start()
@@ -887,12 +891,13 @@ class ChatGPT(API):
             parts = payload['prompt']
             message_id = payload['message_id']
 
+        action = payload.get('action')
         model = payload['model']
         parent_message_id = payload['parent_message_id']
         conversation_id = payload.get('conversation_id')
 
         data = {
-            'action': 'next',
+            'action': action if action else 'next',
             'messages': [
                 {
                     'id': message_id,
@@ -1311,7 +1316,7 @@ class ChatGPT(API):
 
                                 # file_msg['content'].append({"type": file_type, file_type+'_url' if file_type == 'file' else file_type: {'url': file_url}})
 
-                                file_msg['content'].append({"type": 'image_url' if file_type.startswith('image') else 'file', 'image_url' if file_type.startswith('image') else 'file': {'url': file_url}})
+                                file_msg['content'].append({"type": 'image_url' if file_type.startswith('image') else 'file', 'image_url' if file_type.startswith('image') else 'file_url': {'url': file_url}})
 
                                 if 'kimi' in model:
                                     fake_data['use_search'] = False # Kimi模型带附件不能联网搜索
@@ -1384,7 +1389,7 @@ class ChatGPT(API):
                             file_url = quote(self.web_origin + file_path, safe='/:')
 
                         # file_msg['content'].append({"type": file_type, file_type+'_url' if file_type == 'file' else file_type: {'url': file_url}})
-                        file_msg['content'].append({"type": 'image_url' if file_type.startswith('image') else 'file', 'image_url' if file_type.startswith('image') else 'file': {'url': file_url}})
+                        file_msg['content'].append({"type": 'image_url' if file_type.startswith('image') else 'file', 'image_url' if file_type.startswith('image') else 'file_url': {'url': file_url}})
 
                     if 'kimi' in model:
                         fake_data['use_search'] = False

@@ -103,6 +103,7 @@
 --type_blacklist: 限制上传文件的后缀名(黑名单)，以英文逗号","分隔。
 --file_access: 是否允许外网直接访问文件(如果对话希望以url携带文件，则需要True启用)。默认：False。
 --device_id: 官方OAI3.5对话时请求头参数"Oai-Device-Id", 若不配置则从用户浏览器的请求头中获取。多人共享【建议配置】。
+--debug: 打印发送消息的请求体(前500字符)与收到的第一条响应。
 ```
 
 
@@ -140,6 +141,7 @@
 29. `PANDORA_THREADS`: server模式的线程数，默认为`8`。
 30. `PANDORA_CLOUD`: Pandora Cloud模式(原参数，不知还可用否?)。
 31. `PANDORA_SERVERLESS`: vercel部署请启用，将`api.json`指向项目根目录的`data`文件夹(请不要将密钥直接填写到文件)
+32. `PANDORA_DEBUG`: 可设置`True`以打印发送消息的请求体(前500字符)与收到的第一条响应
 
 > 使用Docker仅配置环境变量即可，无视上述`程序参数`。
 >

@@ -332,6 +332,11 @@ def main():
         type=str,
         default=None,
     )
+    parser.add_argument(
+        '--debug',
+        help='Prints the request body(first 500 characters) of the message sent with the first response received.',
+        action='store_true',
+    )
     
     args, _ = parser.parse_known_args()
     __show_verbose = args.verbose
@@ -432,6 +437,9 @@ def main():
 
     if args.device_id:
         os.environ['OPENAI_DEVICE_ID'] = args.device_id
+
+    if args.debug:
+        os.environ['PANDORA_DEBUG'] = 'True'
 
     
     Console.debug_b(
