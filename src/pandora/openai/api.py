@@ -1201,22 +1201,11 @@ class ChatGPT(API):
             return file_path
     
     def __gemini_msg_withfile(self, file_path, file_type):
-        if file_type == 'image_url':
+        if file_type.startswith('image'):
             file_path = USER_CONFIG_DIR + file_path
-            file_type = file_path.split('.')[-1].lower()
-
-            if file_type == 'jpg' or file_type == 'jpeg':
-                file_mimeType = 'image/jpeg'
-            elif file_type == 'png':
-                file_mimeType = 'image/png'
-            elif file_type == 'gif':
-                file_mimeType = 'image/gif'
-            elif file_type == 'webp':
-                file_mimeType = 'image/webp'
-
             file_base64 = self.__file_to_base64(file_path)
 
-            return {'inline_data': {'mime_type': file_mimeType, 'data': file_base64}}
+            return {'inline_data': {'mime_type': file_type, 'data': file_base64}}
         else:
             return None
 
@@ -1375,8 +1364,6 @@ class ChatGPT(API):
                         gemini_file_msg = self.__gemini_msg_withfile(file_path, file_type)
                         if gemini_file_msg:
                             file_msg['parts'].append(gemini_file_msg)
-                        else:
-                            file_msg['role'] = "user" if item['role'] == 'user' else "model"  # 非图片转为普通消息
 
                     else:
                         if API_DATA[model].get('file_base64') and (API_DATA[model].get('file_base64') == 'true' or API_DATA[model].get('file_base64') == True):
