@@ -391,6 +391,7 @@
 - 修复对话列表无法加载58条之后的记录
 - 修复OAI3.5对话
   - 需要使用本地网络环境(可设置代理)，将参数`proxy_api`/环境变量`OPENAI_API_PREFIX`配置为`https://chat.openai.com`，把`Access Token`填入/更新到用户配置目录(即`api.json`所在目录)下的`access_token.dat`文件。
+  - **强烈建议**传入请求头参数"Oai-Device-Id"
   - 请务必注意**环境风控**，**仅**建议使用**无价值账号**
 - 支持文件上传(以Base64编码/Url携带(需公网)、支持类型/大小限制)
 - 支持[kimi-free-api](https://github.com/LLM-Red-Team/kimi-free-api)、[glm-free-api](https://github.com/LLM-Red-Team/glm-free-api)、[emohaa-free-api](https://github.com/LLM-Red-Team/emohaa-free-api)项目
