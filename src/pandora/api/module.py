@@ -1,4 +1,5 @@
-from ..api.database import convs_database, convs_database_cursor
+from ..api.database import convs_database
+# convs_database_cursor
 from ..exts.config import USER_CONFIG_DIR
 from ..openai.utils import Console
 
@@ -66,18 +67,6 @@ class LocalConversation:
                     API_AUTH_DATA[slug] = __auth_generator(auth_list)
 
 
-        # PANDORA_TYPE_WHITELIST = getenv('PANDORA_TYPE_WHITELIST')
-        # PANDORA_TYPE_BLACKLIST = getenv('PANDORA_TYPE_BLACKLIST')
-        # Console.debug(f"PANDORA_TYPE_WHITELIST: {PANDORA_TYPE_WHITELIST}")
-        # Console.debug(f"PANDORA_TYPE_BLACKLIST: {PANDORA_TYPE_BLACKLIST}")
-        # if PANDORA_TYPE_WHITELIST:
-        #     UPLOAD_TYPE_WHITELIST = PANDORA_TYPE_WHITELIST.split(',')
-        #     Console.warn(f"PANDORA_TYPE_WHITELIST: {UPLOAD_TYPE_WHITELIST}")
-
-        # if PANDORA_TYPE_BLACKLIST:
-        #     UPLOAD_TYPE_BLACKLIST = PANDORA_TYPE_BLACKLIST.split(',')
-        #     Console.warn(f"PANDORA_TYPE_BLACKLIST: {UPLOAD_TYPE_BLACKLIST}")
-
     @staticmethod
     def get_url(model):
         url = getenv(model + '_URL')
@@ -124,6 +113,7 @@ class LocalConversation:
     def create_conversation(id, title, time):
         title = title[:40]
 
+        convs_database_cursor = convs_database.cursor()
         convs_database_cursor.execute('''
             CREATE TABLE IF NOT EXISTS list_conversations (
                 id TEXT PRIMARY KEY,
@@ -139,16 +129,18 @@ class LocalConversation:
         )
         
         convs_database.commit()
+        convs_database_cursor.close()
 
     @staticmethod
     def save_conversation(conversation_id, message_id, content, role, time, model, action):
         dt = datetime.fromisoformat(time.replace("+08:00", "+00:00").replace("Z", "+00:00"))
         local_time = dt.strftime('%Y-%m-%d %H:%M:%S')
 
+        convs_database_cursor = convs_database.cursor()
         convs_database_cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations (
                 id TEXT NOT NULL,
-                message_id TEXT NOT NULL,
+                message_id TEXT NOT NULL PRIMARY KEY,
                 role TEXT NOT NULL,
                 message TEXT NOT NULL,
                 model TEXT,
@@ -172,9 +164,12 @@ class LocalConversation:
         )
         
         convs_database.commit()
+        convs_database_cursor.close()
 
     @staticmethod
     def del_conversation(conversation_id):
+        convs_database_cursor = convs_database.cursor()
+
         if getenv('PANDORA_TRUE_DELETE'):
             convs_database_cursor.execute("DELETE FROM list_conversations WHERE id=?", (conversation_id,))
             convs_database_cursor.execute("DELETE FROM conversations WHERE id=?", (conversation_id,))
@@ -183,18 +178,25 @@ class LocalConversation:
             convs_database_cursor.execute("UPDATE list_conversations SET visible = ? WHERE id=?;",(0, conversation_id))
 
         convs_database.commit()
+        convs_database_cursor.close()
 
         return LocalConversation.fake_resp(fake_data=json.dumps({"success":True}))
 
     @staticmethod
     def rename_conversation(title, conversation_id):
+        convs_database_cursor = convs_database.cursor()
+
         convs_database_cursor.execute("UPDATE list_conversations SET title = ? WHERE id=?;",(title, conversation_id))
+
         convs_database.commit()
+        convs_database_cursor.close()
 
         return LocalConversation.fake_resp(fake_data=json.dumps({"success":True}))
 
     @staticmethod
     def list_conversations(offset, limit):
+            convs_database_cursor = convs_database.cursor()
+            
             try:
                 convs_total = convs_database_cursor.execute("SELECT COUNT(id) FROM list_conversations WHERE visible=1").fetchone()[0]
             except Exception as e:
@@ -206,7 +208,10 @@ class LocalConversation:
             except Exception as e:
                 Console.warn(str(e))
 
+                convs_database_cursor.close()
                 return None
+            
+            convs_database_cursor.close()
 
             convs_dict = [dict(zip([column[0] for column in convs_database_cursor.description], row)) for row in convs_data]
             # Console.debug_b('对话列表计数: '+str(len(convs_dict)))
@@ -225,21 +230,29 @@ class LocalConversation:
 
     @staticmethod
     def check_conversation_exist(conversation_id):
+        convs_database_cursor = convs_database.cursor()
+
         try:
             conversation_info = convs_database_cursor.execute("SELECT id FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
 
+            convs_database_cursor.close()
             return conversation_info
         
         except Exception as e:
             Console.warn(f'check_conversation_exist ERROR: {str(e)}')
+
+            convs_database_cursor.close()
             return None
 
     @staticmethod
-    def get_conversation(conversation_id, share=False):   
+    def get_conversation(conversation_id, share=False):
+        convs_database_cursor = convs_database.cursor()
+
         list_conversation_info = convs_database_cursor.execute("SELECT * FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
         # Console.debug_b('conversation_data: {}'.format(conversation_data))
         
-        if list_conversation_info:       
+        if list_conversation_info:
+            # Console.warn(f'Conversation ID: {conversation_id}  ||  Title: {list_conversation_info[1]}')
             conversation_data = convs_database_cursor.execute("SELECT * FROM conversations WHERE id=?", (conversation_id,)).fetchall()
 
             title = list_conversation_info[1]
@@ -304,6 +317,7 @@ class LocalConversation:
             }
 
             for i, item in enumerate(conversation_data):
+                # Console.warn(item)
                 message_id = item[1]
                 role = item[2]
                 message = item[3]
@@ -379,27 +393,29 @@ class LocalConversation:
                     
                 # Console.debug_b('第{}条对话parent: {}'.format(i+1, parent))
                 
-                # mapping_item['message']['metadata'] = metadata
+                # Console.debug(mapping_item)
                 base['mapping'][message_id] = mapping_item
+                
                 # Console.debug_b('role: {}   ||   msg: {}'.format(base['mapping'][message_id]['message']['author']['role'], base['mapping'][message_id]['message']['content']['parts'][0]))
-
-                # Console.debug_b('已添加对话========================')
-                # print(base['mapping'][message_id])
                 
             if share:
+                convs_database_cursor.close()
                 return {"title": base["title"], "create_time": base["create_time"], "update_time": base["update_time"], "conversation_id": base["conversation_id"], "mapping": base["mapping"]}
 
-            # Console.debug_b('对话{}: '.format(conversation_id))
+            # Console.warn(base)
             conv = LocalConversation.fake_resp(fake_data=json.dumps(base, ensure_ascii=False))
+
+            convs_database_cursor.close()
             return conv
-            # return self.fake_resp(fake_data=base)
         
+        convs_database_cursor.close()
         return
 
     @staticmethod
     def get_history_conversation(conversation_id, model_history_count=None):
             history_count = str(model_history_count) if model_history_count else getenv('PANDORA_HISTORY_COUNT')
             
+            convs_database_cursor = convs_database.cursor()
             history_data = convs_database_cursor.execute(
                 """
                 SELECT message_id, role, message 
@@ -430,6 +446,7 @@ class LocalConversation:
             # history_json = json.dumps(history_dict, ensure_ascii=False)
             # Console.debug_b('携带历史对话: {}'.format(history_json))
 
+            convs_database_cursor.close()
             return history_dict
 
     @staticmethod
@@ -538,6 +555,8 @@ class LocalConversation:
 
     @staticmethod
     def create_file_upload(file_id, file_name, file_size, create_time):
+        convs_database_cursor = convs_database.cursor()
+
         # convs_database_cursor.execute("DROP TABLE IF EXISTS files_upload")
         # convs_database.commit()
 
@@ -557,24 +576,31 @@ class LocalConversation:
         )
         
         convs_database.commit()
+        convs_database_cursor.close()
 
     @staticmethod
     def get_file_upload_info(file_id):
+        convs_database_cursor = convs_database.cursor()
         file_name, file_size, file_type, create_time = convs_database_cursor.execute("SELECT file_name, file_size, file_type, create_time FROM files_upload WHERE file_id=?", (file_id,)).fetchone()
 
+        convs_database_cursor.close()
         return file_name, int(file_size), file_type, create_time
     
     @staticmethod
     def get_file_upload_type(file_id):
+        convs_database_cursor = convs_database.cursor()
         file_name, file_type = convs_database_cursor.execute("SELECT file_name, file_type FROM files_upload WHERE file_id=?", (file_id,)).fetchone()
 
+        convs_database_cursor.close()
         return file_name, file_type
     
     @staticmethod
     def update_file_upload_type(file_id, file_type):
+        convs_database_cursor = convs_database.cursor()
         convs_database_cursor.execute("UPDATE files_upload SET file_type = ? WHERE file_id=?;",(file_type, file_id))
 
         convs_database.commit()
+        convs_database_cursor.close()
     
     def save_file_upload(file_id, file_type, file):
         LocalConversation.update_file_upload_type(file_id, file_type)
@@ -596,14 +622,15 @@ class LocalConversation:
 
     @staticmethod
     def save_conversations_file(message_id, conversation_id, parts, attachments, file_path, file_type):
+        convs_database_cursor = convs_database.cursor()
         # convs_database_cursor.execute("DROP TABLE IF EXISTS conversations_file")
         # convs_database.commit()
 
         convs_database_cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations_file (
-                message_id TEXT NOT NULL,
+                message_id TEXT NOT NULL PRIMARY KEY,
                 conversation_id TEXT,
-                parts TEXT  PRIMARY KEY,
+                parts TEXT,
                 attachments TEXT NOT NULL,
                 file_path TEXT,
                 file_type TEXT
@@ -615,27 +642,33 @@ class LocalConversation:
             )
 
             convs_database.commit()
+            convs_database_cursor.close()
         except Exception as e:
             Console.warn(str(e))
+            convs_database_cursor.close()
         
     @staticmethod
     def get_conversations_attachments(message_id):
         try:
+            convs_database_cursor = convs_database.cursor()
             parts_str, attachments_str = convs_database_cursor.execute("SELECT parts, attachments FROM conversations_file WHERE message_id=?", (message_id,)).fetchone()
+            # Console.warn(f'message_id: {message_id}\nparts: {parts_str}\nattachments: {attachments_str}')
 
             if attachments_str:
                 attachments = eval(attachments_str)
                 parts = eval(parts_str)
-                # Console.debug_b(f'message_id: {message_id}  ||  parts: {parts_str}  ||  attachments: {attachments_str}')
-
+                
+                convs_database_cursor.close()
                 return parts, attachments
             
+            convs_database_cursor.close()
             return None, None
         except:
             return None, None
         
     @staticmethod
     def get_history_conversation_attachments(conversation_id):
+        convs_database_cursor = convs_database.cursor()
         convs_data = convs_database_cursor.execute("SELECT message_id, file_path, file_type FROM conversations_file WHERE conversation_id=?", (conversation_id,)).fetchall()
 
         if convs_data:
@@ -650,7 +683,9 @@ class LocalConversation:
                 else:
                     convs_dict[message_id] = [{'file_path': file_path, 'file_type': file_type}]
 
+            convs_database_cursor.close()
             return convs_dict
         
+        convs_database_cursor.close()
         return None
         

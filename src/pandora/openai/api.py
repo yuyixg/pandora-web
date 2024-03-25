@@ -60,14 +60,15 @@ class API:
         resp.status_code = 200
 
         if isinstance(content, (dict, list)):
-            content = json.dumps(content)
+            content = json.dumps(content, ensure_ascii=False)
 
         error_content = 'System Error: \n' + content
+        Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + '{}'.format(error_content))
         msg_id = str(uuid.uuid4())
         create_time = int(time.time())
         fake_json = {"message": {"id": msg_id, "author": {"role": "assistant", "name": None, "metadata": {}}, "create_time": create_time, "update_time": None, "content": {"content_type": "text", "parts": [error_content]}, "status": "in_progress", "end_turn": None, "weight": 1.0, "metadata": {"citations": [], "gizmo_id": None, "message_type": "next", "parent_id": ""}, "recipient": "all"}, "error": error_content}
 
-        resp_content = b'data: ' + json.dumps(fake_json).encode('utf-8') + b'\n\n' + b'data: [DONE]\n\n'
+        resp_content = b'data: ' + json.dumps(fake_json, ensure_ascii=False).encode('utf-8') + b'\n\n' + b'data: [DONE]\n\n'
         resp._content = resp_content
 
         return resp
@@ -1277,8 +1278,8 @@ class ChatGPT(API):
                 history_attaches_list = LocalConversation.get_history_conversation_attachments(conversation_id)
 
                 for item in history_list:
-                    message_id = item['message_id']
-                    if history_attaches_list and message_id in history_attaches_list:   # 历史消息带附件
+                    history_message_id = item['message_id']
+                    if history_attaches_list and history_message_id in history_attaches_list:   # 历史消息带附件
                         if 'gemini' not in model:
                             file_msg = {
                                 "role": item['role'],
@@ -1289,7 +1290,7 @@ class ChatGPT(API):
                         else:
                             file_msg = {"parts": [{"text": item['message']}]}
 
-                        for attach in history_attaches_list[message_id]:
+                        for attach in history_attaches_list[history_message_id]:
                             file_type = attach['file_type']
                             file_path = attach['file_path']
                             
@@ -1377,11 +1378,14 @@ class ChatGPT(API):
 
                         # file_msg['content'].append({"type": file_type, file_type+'_url' if file_type == 'file' else file_type: {'url': file_url}})
                         file_msg['content'].append({"type": 'image_url' if file_type.startswith('image') else 'file', 'image_url' if file_type.startswith('image') else 'file_url': {'url': file_url}})
+                        # Console.warn({"type": 'image_url' if file_type.startswith('image') else 'file', 'image_url' if file_type.startswith('image') else 'file_url': {'url': file_path}})
 
                     if 'kimi' in model:
                         fake_data['use_search'] = False
 
                 fake_data['messages' if 'gemini' not in model else 'contents'].append(file_msg)
+
+                # Console.debug('New Message | message_id: {} | content: {} | url: {}'.format(message_id, content, fake_data['messages'][-1]['content'][1]['image_url']['url'][:10]))   # dev
 
             else:
                 # 调用其他模型优化生图Prompt
@@ -1451,7 +1455,8 @@ class ChatGPT(API):
                             item['codeContexts'] = []   # user对话需要带上codeContexts, 否则报错
 
                 fake_data['messages'].append({"role": "user", "content": content})
-
+                
+            
             return self._request_sse(url, headers, fake_data, conversation_id, message_id, model, action, content)
 
         # if talk:

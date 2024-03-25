@@ -397,4 +397,5 @@
 - 支持[kimi-free-api](https://github.com/LLM-Red-Team/kimi-free-api)、[glm-free-api](https://github.com/LLM-Red-Team/glm-free-api)、[emohaa-free-api](https://github.com/LLM-Red-Team/emohaa-free-api)项目
 - 前端直接显示接口报错内容
 - 将GPT4叽里呱啦的模型说明改为"Be more powerful"，简洁有力
-- 尝试支持Vercel部署
+- 去掉"Upgrade plan"按钮
+- 尝试支持Vercel部署(还未测试)

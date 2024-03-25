@@ -860,7 +860,7 @@ class ChatBot:
             if status != 200:
                 import json
 
-                fake_resp = API.error_fallback(json.dumps(status))
+                fake_resp = API.error_fallback(json.dumps(status, ensure_ascii=False))
                 return ChatBot.__proxy_result(fake_resp)
             
             return Response(API.wrap_stream_out(generator, status), mimetype=headers['Content-Type'], status=status)
