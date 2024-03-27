@@ -669,23 +669,32 @@ class LocalConversation:
     @staticmethod
     def get_history_conversation_attachments(conversation_id):
         convs_database_cursor = convs_database.cursor()
-        convs_data = convs_database_cursor.execute("SELECT message_id, file_path, file_type FROM conversations_file WHERE conversation_id=?", (conversation_id,)).fetchall()
 
-        if convs_data:
-            convs_dict = {}
-            for row in convs_data:
-                message_id = row[0]
-                file_path = row[1]
-                file_type = row[2]
+        try:
+            convs_data = convs_database_cursor.execute("SELECT message_id, file_path, file_type FROM conversations_file WHERE conversation_id=?", (conversation_id,)).fetchall()
+            if convs_data:
+                convs_dict = {}
+                for row in convs_data:
+                    message_id = row[0]
+                    file_path = row[1]
+                    file_type = row[2]
 
-                if convs_dict.get(message_id):
-                    convs_dict[message_id].append({'file_path': file_path, 'file_type': file_type})
-                else:
-                    convs_dict[message_id] = [{'file_path': file_path, 'file_type': file_type}]
+                    if convs_dict.get(message_id):
+                        convs_dict[message_id].append({'file_path': file_path, 'file_type': file_type})
+                    else:
+                        convs_dict[message_id] = [{'file_path': file_path, 'file_type': file_type}]
 
+                convs_database_cursor.close()
+                return convs_dict
+            
             convs_database_cursor.close()
-            return convs_dict
+            return None
         
-        convs_database_cursor.close()
-        return None
+        except Exception as e:
+            ee = str(e)
+            if 'no such table' not in ee:
+                Console.warn(f'API.module: get_history_conversation_attachments ERROR: {str(e)}')
+                
+            convs_database_cursor.close()
+            return None
         
