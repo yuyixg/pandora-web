@@ -678,9 +678,19 @@ class ChatGPT(API):
         try:
             url = '{}/backend-api/register-websocket'.format(self.__get_api_prefix())
             data = request.data
+            headers = self.__get_headers(token)
+
+            if url.startswith('https://chat.openai.com'):
+                headers['Origin'] = 'https://chat.openai.com'
+            
             resp = self.session.post(url=url, headers=self.__get_headers(token), data=data, **self.req_kwargs)
 
-            return resp
+            if resp.status_code == 200:
+                return resp
+            else:
+                Console.warn('register_websocket FAILED: Status_Code={} | Content_Type={}'.format(str(resp.status_code), resp.headers.get('Content-Type')))
+                return 404
+                
         except Exception as e:
             Console.warn('register_websocket FAILED: {}'.format(e))
             return 404
