@@ -250,7 +250,7 @@ class ChatBot:
                 return redirect("/")
             else:
                 # self.logger.warning('{} | {} | {}'.format(date, ip, 'Password Error: '+data['password']))
-                self.chatgpt.log(date, ip, 'Password Error: ' + data['password'])
+                self.log(date, ip, 'Password Error: ' + data['password'])
                 return make_response(jsonify({"error": "Invalid password"}), 401)
         else:
             if getenv('PANDORA_OLD_LOGIN'):
