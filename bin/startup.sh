@@ -115,7 +115,7 @@ if [ -n "${PANDORA_API}" ]; then
 fi
 
 if [ -n "${PANDORA_LOGIN_LOCAL}" ]; then
-  PANDORA_ARGS="${PANDORA_ARGS} -login_local"
+  PANDORA_ARGS="${PANDORA_ARGS} --login_local"
 fi
 
 if [ -n "${PANDORA_VERBOSE}" ]; then
