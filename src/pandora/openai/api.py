@@ -1315,7 +1315,7 @@ class ChatGPT(API):
                                     if 'glm' in model:
                                         file_url = self.__file_to_base64(file_path)
                                     else:
-                                        file_url = f'data:{file_mimeType};base64,' + self.__file_to_base64(file_path)
+                                        file_url = f'data:{file_type};base64,' + self.__file_to_base64(file_path)
 
                                 elif API_DATA[model].get('file_base64url') and (API_DATA[model].get('file_base64url') == 'true' or API_DATA[model].get('file_base64url') == True):
                                     file_url = self.__file_to_base64url(file_path)
