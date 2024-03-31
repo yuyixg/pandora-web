@@ -169,7 +169,8 @@ class API:
                     # break
                     continue
 
-                if 'data: {"message":' == utf8_line[0:17] or 'data: {"id":' == utf8_line[0:12] or 'data: {"choices":' == utf8_line[0:17]:
+                # if 'data: {"message":' == utf8_line[0:17] or 'data: {"id":' == utf8_line[0:12] or 'data: {"choices":' == utf8_line[0:17]:
+                if 'data: ' in utf8_line[0:6]:
                     json_data = json.loads(utf8_line[6:])
 
                     if json_data.get('choices'):
@@ -204,21 +205,26 @@ class API:
                 if 'double' in model:
                     resp_content += utf8_line
 
+                # 适配DALL·E
+                if 'dall-e' in model:
+                    if '      "revised_prompt": ' in utf8_line[0:25]:
+                        resp_content += utf8_line[25:-2]
+
+                    if '      "url": ' in utf8_line[0:14]:
+                        resp_content += '![img]({})'.format(utf8_line[14:-1])
+
                 if resp_content:
                     for char in resp_content[index:]:
                         yield_msg += char
                         fake_json = {"message": {"id": msg_id, "author": {"role": "assistant", "name": None, "metadata": {}}, "create_time": create_time, "update_time": None, "content": {"content_type": "text", "parts": [yield_msg]}, "status": "in_progress", "end_turn": None, "weight": 1.0, "metadata": {"citations": [], "gizmo_id": None, "message_type": "next", "model_slug": model, "parent_id": ""}, "recipient": "all"}, "conversation_id": conversation_id, "error": None}
                         index += 1
 
-                        yield fake_json
-
         else:
             resp_content = await LocalConversation.save_image_file(resp, self.web_origin, msg_id, img_type)
 
             fake_json = {"message": {"id": msg_id, "author": {"role": "assistant", "name": None, "metadata": {}}, "create_time": create_time, "update_time": None, "content": {"content_type": "text", "parts": [resp_content]}, "status": "in_progress", "end_turn": None, "weight": 1.0, "metadata": {"citations": [], "gizmo_id": None, "message_type": "next", "model_slug": model, "parent_id": ""}, "recipient": "all"}, "conversation_id": conversation_id, "error": None}
 
-            yield fake_json
-
+        yield fake_json
 
         # Console.debug_b("End of assistant's answer, save assistant conversation.")
         LocalConversation.save_conversation(conversation_id, msg_id, resp_content, 'assistant', datetime.now(tzutc()).isoformat(), model, action)
@@ -1282,7 +1288,7 @@ class ChatGPT(API):
                     fake_data['messages'].append({"role": "system", "content": prompt})
 
             ### 插入历史消息
-            if data.get('conversation_id'):
+            if data.get('conversation_id') and 'dall-e' not in model:
                 conversation_id = data['conversation_id']
                 history_list = LocalConversation.get_history_conversation(conversation_id, API_DATA[model].get('history_count'))
                 history_attaches_list = LocalConversation.get_history_conversation_attachments(conversation_id)
@@ -1306,7 +1312,10 @@ class ChatGPT(API):
                             
                             if 'gemini' not in model:
                                 if API_DATA[model].get('file_base64') and (API_DATA[model].get('file_base64') == 'true' or API_DATA[model].get('file_base64') == True):
-                                    file_url = self.__file_to_base64(file_path)
+                                    if 'glm' in model:
+                                        file_url = self.__file_to_base64(file_path)
+                                    else:
+                                        file_url = f'data:{file_mimeType};base64,' + self.__file_to_base64(file_path)
 
                                 elif API_DATA[model].get('file_base64url') and (API_DATA[model].get('file_base64url') == 'true' or API_DATA[model].get('file_base64url') == True):
                                     file_url = self.__file_to_base64url(file_path)
@@ -1337,7 +1346,7 @@ class ChatGPT(API):
                         else:
                             fake_data['contents'].append({"role": "user" if item['role'] == 'user' else "model", "parts": [{"text": item['message']}]})
 
-            else:
+            elif action != 'variant':
                 # Console.debug_b('No conversation_id, create and save user conversation.')
                 conversation_id = str(uuid.uuid4())
                 LocalConversation.create_conversation(conversation_id, content, datetime.now(tzutc()).isoformat())
@@ -1378,7 +1387,10 @@ class ChatGPT(API):
 
                     else:
                         if API_DATA[model].get('file_base64') and (API_DATA[model].get('file_base64') == 'true' or API_DATA[model].get('file_base64') == True):
-                            file_url = self.__file_to_base64(file_path)
+                            if 'glm' in model:
+                                file_url = self.__file_to_base64(file_path)
+                            else:
+                                file_url = f'data:{file_mimeType};base64,' + self.__file_to_base64(file_path)
 
                         elif API_DATA[model].get('file_base64url') and (API_DATA[model].get('file_base64url') == 'true' or API_DATA[model].get('file_base64url') == True):
                             file_url = self.__file_to_base64url(file_path)
@@ -1417,6 +1429,16 @@ class ChatGPT(API):
                     gen_img_data = {"prompt": content}
 
                     return self._request_sse(img_url, headers, gen_img_data, conversation_id, message_id, model, action, content)
+
+                # 适配DALL·E
+                if 'dall-e' in model:
+                    fake_data = {
+                        "model": model,
+                        "prompt": content,
+                        "n": 1,
+                    }
+
+                    return self._request_sse(url, headers, fake_data, conversation_id, message_id, model, action, content)
 
                 # 适配Gemini
                 if 'gemini' in model:
