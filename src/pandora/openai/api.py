@@ -1248,7 +1248,7 @@ class ChatGPT(API):
             prompt = API_DATA[model].get('prompt')
             message_id = data['messages'][0]['id']
             action = data['action']
-            conversation_id = None
+            conversation_id = data.get('conversation_id')
 
             url = LocalConversation.get_url(model)
             auth = LocalConversation.get_auth(model)
@@ -1289,9 +1289,9 @@ class ChatGPT(API):
                 else:
                     fake_data['messages'].append({"role": "system", "content": prompt})
 
-            ### 插入历史消息
+            ## 插入历史消息
+            ### DALL·E不插入历史消息
             if data.get('conversation_id') and 'dall-e' not in model:
-                conversation_id = data['conversation_id']
                 history_list = LocalConversation.get_history_conversation(conversation_id, API_DATA[model].get('history_count'))
                 history_attaches_list = LocalConversation.get_history_conversation_attachments(conversation_id)
 
@@ -1349,16 +1349,17 @@ class ChatGPT(API):
                             fake_data['contents'].append({"role": "user" if item['role'] == 'user' else "model", "parts": [{"text": item['message']}]})
 
             elif action != 'variant':
-                # Console.debug_b('No conversation_id, create and save user conversation.')
-                conversation_id = str(uuid.uuid4())
-                LocalConversation.create_conversation(conversation_id, content, datetime.now(tzutc()).isoformat())
+                if not data.get('conversation_id'):
+                    # Console.debug_b('No conversation_id, create and save user conversation.')
+                    conversation_id = str(uuid.uuid4())
+                    LocalConversation.create_conversation(conversation_id, content, datetime.now(tzutc()).isoformat())
                 
             LocalConversation.save_conversation(conversation_id, message_id, content, 'user', datetime.now(tzutc()).isoformat(), model, action)
 
             ###########            
             
-            ### 发送新消息
-            ## 带附件
+            ## 发送新消息
+            ### 带附件
             if attachments:
                 if 'gemini' not in model:
                     file_msg = {

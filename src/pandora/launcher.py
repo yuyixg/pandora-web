@@ -74,7 +74,7 @@ def confirm_access_token(token_file=None, silence=False, api=False, email=None, 
         if 'y' == confirm:
             token_file_modified_time = datetime.datetime.fromtimestamp(os.path.getmtime(app_token_file))
             days_diff = (datetime.datetime.now() - token_file_modified_time).days
-            if days_diff >= 1:
+            if days_diff >= 8:
                 Console.warn('### The access token file has been used for {} days, we should update access token!\n'.format(days_diff))
 
                 if not email or not password:
