@@ -50,7 +50,7 @@ def save_access_token(access_token):
         print()
 
 
-def confirm_access_token(token_file=None, silence=False, api=False):
+def confirm_access_token(token_file=None, silence=False, api=False, email=None, password=None, mfa=None):
     app_token_file = os.path.join(USER_CONFIG_DIR, 'access_token.dat')
 
     app_token_file_exists = os.path.isfile(app_token_file)
@@ -74,12 +74,22 @@ def confirm_access_token(token_file=None, silence=False, api=False):
         if 'y' == confirm:
             token_file_modified_time = datetime.datetime.fromtimestamp(os.path.getmtime(app_token_file))
             days_diff = (datetime.datetime.now() - token_file_modified_time).days
-            if days_diff >= 8:
+            if days_diff >= 1:
                 Console.warn('### The access token file has been used for {} days, we should update access token!\n'.format(days_diff))
-                email = getenv('OPENAI_EMAIL') or Prompt.ask('  Email')
-                password = getenv('OPENAI_PASSWORD') or Prompt.ask('  Password', password=True)
-                # mfa = getenv('OPENAI_MFA_CODE') or Prompt.ask('  MFA Code(Optional if not set)')
-                mfa = getenv('OPENAI_MFA_CODE') or None
+
+                if not email or not password:
+                    if not password and not silence:
+                        password = Prompt.ask('  Password', password=True)
+                    else:
+                        Console.warn('### Invalid email or password. Abandoned update.')
+                        return read_access_token(app_token_file), False
+
+                ## ask Error in docker: Exception occurred in file /usr/local/lib/python3.9/site-packages/rich/console.py at line 2123: EOF when reading a line
+                # email = getenv('OPENAI_EMAIL') or Prompt.ask('  Email')
+                # password = getenv('OPENAI_PASSWORD') or Prompt.ask('  Password', password=True)
+                # # mfa = getenv('OPENAI_MFA_CODE') or Prompt.ask('  MFA Code(Optional if not set)')
+                # mfa = getenv('OPENAI_MFA_CODE') or None
+                    
                 Console.warn('### Do login, please wait...')
                 access_token = Auth0(email, password, getenv('PROXY'), mfa=mfa).auth()
 
@@ -355,7 +365,7 @@ def main():
             # if args.proxy_api == 'https://chat.openai.com' and not args.device_id:
             #     raise Exception('You are using the official OAI service but No args.device_id or env.OPENAI_DEVICE_ID !')
             os.environ['OPENAI_API_PREFIX'] = args.proxy_api
-        if not args.local:
+        elif not args.local:
             raise Exception('No args.proxy_api or env.OPENAI_API_PREFIX !')
         else:
             if not os.path.exists(USER_CONFIG_DIR + '/api.json'):
@@ -494,20 +504,20 @@ def main():
 
     access_tokens = parse_access_tokens(args.tokens_file, args.api) if args.tokens_file else None
 
-    if not access_tokens and not getenv('PANDORA_LOCAL_OPTION'):
-        access_token, need_save = confirm_access_token(args.token_file, args.server, args.api)
+    if not access_tokens and not args.local:
+        access_token, need_save = confirm_access_token(args.token_file, args.server, args.api, args.email, args.password, args.mfa)
         if not access_token:
             # Console.info_b('Please enter your email and password to log in ChatGPT!')
             if not args.login_local:
                 Console.warn('We login via {}'.format(getenv('OPENAI_API_PREFIX')))
 
-            email = getenv('OPENAI_EMAIL')  # or Prompt.ask('  Email')
-            password = getenv('OPENAI_PASSWORD')
-            if password is None:
-                Prompt.ask('  Password', password=True)
-                os.environ['OPENAI_PASSWORD'] = password
+            email = args.email  # or Prompt.ask('  Email')
+            password = args.password
+            # if password is None:
+            #     Prompt.ask('  Password', password=True)
+            #     os.environ['OPENAI_PASSWORD'] = password
             # mfa = getenv('OPENAI_MFA_CODE') or Prompt.ask('  MFA Code(Optional if not set)')
-            mfa = getenv('OPENAI_MFA_CODE')
+            mfa = args.mfa
             if email and password:
                 Console.warn('### Do login, please wait...')
                 access_token = Auth0(email, password, args.proxy, mfa=mfa).auth(args.login_local)
