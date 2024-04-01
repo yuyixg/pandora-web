@@ -355,8 +355,11 @@ def main():
             # if args.proxy_api == 'https://chat.openai.com' and not args.device_id:
             #     raise Exception('You are using the official OAI service but No args.device_id or env.OPENAI_DEVICE_ID !')
             os.environ['OPENAI_API_PREFIX'] = args.proxy_api
-        elif not args.local or not getenv('PANDORA_LOCAL_OPTION'):
+        if not args.local:
             raise Exception('No args.proxy_api or env.OPENAI_API_PREFIX !')
+        else:
+            if not os.path.exists(USER_CONFIG_DIR + '/api.json'):
+                raise Exception('You had enabled local mode, but no "api.json" file found in user config dir!')
         
     if not login_url:
         if args.login_url:
