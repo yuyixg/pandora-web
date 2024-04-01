@@ -408,12 +408,14 @@ class ChatGPT(API):
     
     def __get_api_req_kwargs(self, model):
         req_kwargs = self.req_kwargs
-
-        if API_DATA[model].get('proxy'):
-            req_kwargs['proxies'] = {
-                'http': API_DATA[model]['proxy'],
-                'https': API_DATA[model]['proxy'],
-            }
+        proxy_url = API_DATA[model].get('proxy')
+        proxy = {
+                    "http": proxy_url,
+                    "https": proxy_url,
+                }if 'proxy' in API_DATA[model] else None
+        
+        if proxy:
+            req_kwargs['proxies'] = proxy
 
         return req_kwargs
 
@@ -988,7 +990,7 @@ class ChatGPT(API):
         if not prompt_model.startswith('@cf'):
             prompt_data['model'] = prompt_model
 
-            if 'glm' in prompt_model:
+            if 'glm' in prompt_model and prompt_model != 'glm-free-api':
                 auth = LocalConversation.glm_generate_token(auth, 3600)
 
             if 'double' in prompt_model:
