@@ -785,7 +785,8 @@ class ChatBot:
                 return self.__proxy_result(self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID))
             
             else:
-                model = gpt35_model
+                payload['model'] = gpt35_model
+                # Console.debug('GPT-3.5 model: {}'.format(model))
         
         # if model == 'stable-diffusion-xl-base-1.0' or model == 'dreamshaper-8-lcm' or model == 'stable-diffusion-xl-lightning':
         #     return self.__proxy_result(self.chatgpt.cfai_text2img(payload, self.__get_token_key()))
