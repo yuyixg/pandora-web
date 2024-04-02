@@ -53,7 +53,7 @@ if [ -n "${PANDORA_GPT4_MODEL}" ]; then
 fi
 
 if [ -n "${PANDORA_GPT35_MODEL}" ]; then
-  PANDORA_ARGS="${PANDORA_ARGS} --gpt35 ${PANDORA_GPT4_MODEL}"
+  PANDORA_ARGS="${PANDORA_ARGS} --gpt35 ${PANDORA_GPT35_MODEL}"
 fi
 
 # History settings
