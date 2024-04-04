@@ -28,6 +28,7 @@ import time
 import urllib.parse
 from urllib.parse import quote
 import base64
+import traceback
 from bs4 import BeautifulSoup   # func get_origin_share_data
 
 if os.path.exists(USER_CONFIG_DIR + '/api.json') and not getenv('PANDORA_OAI_ONLY'):
@@ -78,20 +79,6 @@ class API:
         if status != 200:
             for line in generator:
                 yield json.dumps(line)
-                # data = json.dumps(line)
-                # Console.debug_b('wrap_stream_out => status != 200:{}'.format('data: ' + data + '\n\n'))
-
-                # msg_id = str(uuid.uuid4())
-                # create_time = int(time.time())
-                # fake_json = {"message": {"id": msg_id, "author": {"role": "assistant", "name": None, "metadata": {}}, "create_time": create_time, "update_time": None, "content": {"content_type": "text", "parts": [data]}, "status": "in_progress", "end_turn": None, "weight": 1.0, "metadata": {"citations": [], "gizmo_id": None, "message_type": "next", "parent_id": ""}, "recipient": "all"}, "error": data}
-                
-                # # 尝试返回错误信息               
-                # yield b'data: ' + json.dumps(fake_json).encode('utf-8') + b'\n\n'
-                # yield b'data: [DONE]\n\n'
-
-                # # yield json.dumps(line)
-
-                # return API.error_fallback(data)
 
             return
 
@@ -144,7 +131,7 @@ class API:
                 
                 # dev
                 if not SHOW_RESP_MSG and self.PANDORA_DEBUG == 'True':
-                    Console.debug_b(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + '{}'.format(utf8_line))
+                    Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + '{}'.format(utf8_line))
                     SHOW_RESP_MSG = True
 
                 # 适配Real-Coze-API
@@ -162,44 +149,56 @@ class API:
                     resp_content = '![img]({})'.format(resp_data['data'][0]['url'])
 
                 if 'data: [DONE]' == utf8_line[0:12] or 'data: [DONE]' == utf8_line:
-                    # if SAVE_ASSISTANT_MSG == False:
-                    #     Console.debug_b('End of assistant's answer, save assistant conversation.')
-                    #     LocalConversation.save_conversation(conversation_id, id, resp_content, 'assistant', datetime.now(tzutc()).isoformat(), model, action)
-                        
-                    # break
                     continue
 
-                # if 'data: {"message":' == utf8_line[0:17] or 'data: {"id":' == utf8_line[0:12] or 'data: {"choices":' == utf8_line[0:17]:
                 if 'data: ' in utf8_line[0:6]:
                     json_data = json.loads(utf8_line[6:])
 
-                    if json_data.get('choices'):
-                        if json_data.get('created'):
-                            create_time = json_data['created']
+                    # 适配3.5
+                    if conversation_id is None and json_data.get('conversation_id'):
+                        conversation_id = json_data['conversation_id']
 
-                        if json_data.get('id'):
-                            msg_id = json_data['id']
+                    if json_data.get('id'):
+                        msg_id = json_data['id']
 
-                        if json_data['choices'][0].get('message'):
-                            resp_content = json_data['choices'][0]['message']['content']
+                    if json_data.get('message'):
+                        if json_data['message'].get('id'):
+                            msg_id = json_data['message']['id']
 
-                        elif json_data['choices'][0].get('delta'):  # 适配GLM
-                            # print('{}'.format(json_data['choices'][0]['delta']['content']), end='')
-                            try:
-                                resp_content += json_data['choices'][0]['delta']['content']
+                        if json_data['message'].get('create_time'):
+                            create_time = json_data['message']['create_time']
+                    
+                    if json_data.get('created'):
+                        create_time = json_data['created']
 
-                            except KeyError:
-                                continue
+                    if json_data.get('create_time'):
+                        create_time = json_data['create_time']
+
+                    # 适配cloudflare ai
+                    if 'data: {"response":' == utf8_line[0:18]:
+                        resp_content += json_data['response']
+
+                    else:
+                        if json_data.get('choices'):
+                            if json_data['choices'][0].get('message'):
+                                resp_content = json_data['choices'][0]['message']['content']
+
+                            elif json_data['choices'][0].get('delta'):  # 适配GLM
+                                try:
+                                    resp_content += json_data['choices'][0]['delta']['content']
+                                except KeyError:
+                                    continue
+
+                        # 适配3.5
+                        elif json_data.get('message'):
+                            if json_data['message'].get('content'):
+                                if json_data['message']['content'].get('parts'):
+                                    resp_content = json_data['message']['content']['parts'][0]
 
                 # 适配Gemini
                 if '"text": ' == utf8_line[12:20] and 'gemini' in model:
                     text_json = json.loads('{' + utf8_line[12:] + '}')
                     resp_content += text_json['text']
-
-                # 适配cloudflare ai
-                if 'data: {"response":' == utf8_line[0:18]:
-                    json_data = json.loads(utf8_line[6:])
-                    resp_content += json_data['response']
 
                 # 适配Double
                 if 'double' in model:
@@ -314,7 +313,7 @@ class API:
     def _request_sse(self, url, headers, data, conversation_id=None, message_id=None, model=None, action=None, prompt=None):
         if self.PANDORA_DEBUG == 'True':
             data_str = json.dumps(data, ensure_ascii=False)[:500]
-            Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + 'data: {}'.format(data_str)) # dev
+            Console.debug(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + 'data: {}'.format(data_str)) # dev
 
         queue, e = block_queue.Queue(), threading.Event()
         t = threading.Thread(target=asyncio.run, args=(self._do_request_sse(url, headers, data, queue, e, conversation_id, message_id, model, action, prompt),))
@@ -383,7 +382,7 @@ class ChatGPT(API):
         headers = {
                     "Accept":"*/*",
                     "Accept-Encoding":"gzip, deflate, br, zstd",
-                    "Accept-Language":"zh-CN,zh;q=0.9",
+                    "Accept-Language":"en-US,en;q=0.9",
                     "Authorization":'Bearer ' + self.get_access_token(token_key),
                     "Cache-Control":"no-cache",
                     "Content-Type":"application/json",
@@ -605,6 +604,8 @@ class ChatGPT(API):
                     if self.OAI_ONLY:
                         return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
             except Exception as e:
+                error_detail = traceback.format_exc()
+                Console.debug(error_detail)
                 Console.warn('list_conversations FAILED: {}'.format(e))
                 ERROR_FLAG = True
 
@@ -702,6 +703,8 @@ class ChatGPT(API):
                 return 404
                 
         except Exception as e:
+            error_detail = traceback.format_exc()
+            Console.debug(error_detail)
             Console.warn('register_websocket FAILED: {}'.format(e))
             return 404
     
@@ -818,8 +821,12 @@ class ChatGPT(API):
                 file_size_MB = int(file_size) / 1024 / 1024
                 if file_size_MB > self.FILE_SIZE_LIMIT:
                     return self.fake_resp(fake_data=json.dumps({'code': 403, 'message':'File size exceeds the limit!'}))
+                
             except Exception as e:
+                error_detail = traceback.format_exc()
+                Console.debug(error_detail)
                 Console.warn('file_upload FAILED: {}'.format(e))
+
                 return self.fake_resp(fake_data=json.dumps({f'code': 403, 'message':'file_start_upload FAILED: {e}'}))
 
         file_id = 'file-' + str(uuid.uuid4()).replace('-', '')
@@ -839,8 +846,12 @@ class ChatGPT(API):
                 file_size_MB = int(len(file)) / 1024 / 1024
                 if file_size_MB > self.FILE_SIZE_LIMIT:
                     return self.fake_resp(fake_data=json.dumps({'code': 500, 'message':'File size exceeds the limit!'}))
+                
             except Exception as e:
+                error_detail = traceback.format_exc()
+                Console.debug(error_detail)
                 Console.warn('file_upload FAILED: {}'.format(e))
+
                 return self.fake_resp(fake_data=json.dumps({f'code': 500, 'message':'file_upload FAILED: {e}'}))
             
         # Console.warn('file_size: {}'.format(len(file)))
@@ -904,18 +915,22 @@ class ChatGPT(API):
         if web_origin:
             self.web_origin = web_origin
 
-        try:
+        if payload.get('messages'):
+            action = payload['action']
             parts = payload['messages'][0]['content']['parts']
+            content = str(parts[0]) if len(parts) == 1 else str(parts[-1])
+            model = payload['model']
             message_id = payload['messages'][0]['id']
-        except KeyError:
-            # 兼容旧ui参数
+        else:
+            payload['action'] = 'next'
+            action = 'next'
             parts = payload['prompt']
+            content = str(parts)
+            model = payload['model']
             message_id = payload['message_id']
-
-        action = payload.get('action')
-        model = payload['model']
-        parent_message_id = payload['parent_message_id']
+        
         conversation_id = payload.get('conversation_id')
+        parent_message_id = payload['parent_message_id']
 
         data = {
             'action': action if action else 'next',
@@ -930,7 +945,7 @@ class ChatGPT(API):
                         'content_type': 'text',
                         'parts': parts if isinstance(parts, list) else [parts],
                     },
-                    'metadata': payload['messages'][0].get('metadata', {}),
+                    'metadata': payload['messages'][0].get('metadata', {}) if payload.get('messages') else {},
                 }
             ],
             'model': model,
@@ -942,9 +957,12 @@ class ChatGPT(API):
 
         return self.__request_conversation(data, token)
     
-    def __chat_requirements(self, token=None):
+    def __chat_requirements(self, token=None, OAI_Device_ID=None):
+        headers=self.__get_headers(token, OAI_Device_ID)
+        headers['Dnt'] = '1'
+        
         url = 'https://chat.openai.com/backend-api/sentinel/chat-requirements'
-        resp = self.session.post(url=url, headers=self.__get_headers(token), json={}, **self.req_kwargs)
+        resp = self.session.post(url=url, headers=headers, json={}, **self.req_kwargs)
 
         return resp.json()['token']
 
@@ -955,17 +973,65 @@ class ChatGPT(API):
         try:
             url = '{}/backend-api/conversation'.format(self.__get_api_prefix())
             headers = self.__get_headers(token, OAI_Device_ID)
+            headers['Dnt'] = '1'
+
             if url.startswith('https://chat.openai.com'):
                 headers['Openai-Sentinel-Chat-Requirements-Token'] = self.__chat_requirements(token)
 
-            resp = self.session.post(url=url, headers=headers, json=payload, **self.req_kwargs)
+            # resp = self.session.post(url=url, headers=headers, json=payload, **self.req_kwargs)
 
-            if resp.status_code == 200:
-                return resp
+            # if resp.status_code == 200:
+            #     return resp
             
-            return API.error_fallback(resp.text)
+            # return API.error_fallback(resp.text)
+                
+            if payload.get('messages'):
+                action = payload['action']
+                parts = payload['messages'][0]['content']['parts']
+                content = str(parts[0]) if len(parts) == 1 else str(parts[-1])
+                model = payload['model']
+                message_id = payload['messages'][0]['id']
+
+            else:
+                payload['action'] = 'next'
+                action = 'next'
+                parts = payload['prompt']
+                content = payload['prompt']
+                model = payload['model']
+                message_id = payload['message_id']
+
+            parent_message_id = payload['parent_message_id']
+
+            data = {
+                    'action': action if action else 'next',
+                    'messages': [
+                        {
+                            'id': message_id,
+                            'role': 'user',
+                            'author': {
+                                'role': 'user',
+                            },
+                            'content': {
+                                'content_type': 'text',
+                                'parts': parts if isinstance(parts, list) else [parts],
+                            },
+                            'metadata': payload['messages'][0].get('metadata', {}) if payload.get('messages') else {},
+                        }
+                    ],
+                    'model': model,
+                    'parent_message_id': parent_message_id,
+                }
+        
+            conversation_id = payload.get('conversation_id')
+
+            if conversation_id:
+                data['conversation_id'] = conversation_id
+
+            return self._request_sse(url, headers, data, conversation_id, message_id, model, action, content)
         
         except Exception as e:
+            error_detail = traceback.format_exc()
+            Console.debug(error_detail)
             Console.warn('chat_ws FAILED: {}'.format(e))
 
             return API.error_fallback('Error: {}'.format(e))
@@ -1200,6 +1266,8 @@ class ChatGPT(API):
                 Console.warn('file_to_base64 FAILED: No such file: {}'.format(file_path))
                 
         except Exception as e:
+            error_detail = traceback.format_exc()
+            Console.debug(error_detail)
             Console.warn('file_to_base64 FAILED: {}'.format(e))
             return file_path
         
@@ -1218,6 +1286,8 @@ class ChatGPT(API):
                 Console.warn('file_to_base64url FAILED: No such file: {}'.format(file_path))
                 
         except Exception as e:
+            error_detail = traceback.format_exc()
+            Console.debug(error_detail)
             Console.warn('file_to_base64url FAILED: {}'.format(e))
             return file_path
     
@@ -1242,15 +1312,24 @@ class ChatGPT(API):
 
         if data['model'] in API_DATA:
             # Console.warn('Request conversation: {}'.format(data['messages'][0]))
-            parts = data['messages'][0]['content']['parts']
-            attachments = data['messages'][0]['metadata'].get('attachments')
-            content = str(parts[0]) if len(parts) == 1 else str(parts[-1])
-            model = data['model']
+            if data.get('messages'):
+                action = data['action']
+                parts = data['messages'][0]['content']['parts']
+                attachments = data['messages'][0]['metadata'].get('attachments')
+                content = str(parts[0]) if len(parts) == 1 else str(parts[-1])
+                model = data['model']
+                message_id = data['messages'][0]['id']
+            else:
+                action = data.get('action')
+                parts = data['prompt']
+                content = str(parts)
+                model = data['model']
+                message_id = data['message_id']
+                attachments = None
+            
+            conversation_id = data.get('conversation_id')
             prompt_model = API_DATA[model].get('prompt_model')
             prompt = API_DATA[model].get('prompt')
-            message_id = data['messages'][0]['id']
-            action = data['action']
-            conversation_id = data.get('conversation_id')
 
             url = LocalConversation.get_url(model)
             auth = LocalConversation.get_auth(model)

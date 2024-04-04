@@ -673,7 +673,9 @@ class ChatBot:
     def register_websocket(self):
         # Console.debug_b('register_websocket => '.format(request.json))
 
-        return self.__proxy_result(self.chatgpt.register_websocket(request, self.__get_token_key()))
+        # return self.__proxy_result(self.chatgpt.register_websocket(request, self.__get_token_key()))
+
+        return jsonify({})
 
     def list_conversations(self):
         offset = request.args.get('offset', '0')
@@ -782,8 +784,8 @@ class ChatBot:
             gpt35_model = getenv('PANDORA_GPT35_MODEL')
             if not gpt35_model:
                 OAI_Device_ID = request.headers.get('Oai-Device-Id')
-                return self.__proxy_result(self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID))
-            
+                
+                return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID), stream)
             else:
                 payload['model'] = gpt35_model
                 # Console.debug('GPT-3.5 model: {}'.format(model))
@@ -810,21 +812,29 @@ class ChatBot:
             *self.chatgpt.goon(model, parent_message_id, conversation_id, stream, self.__get_token_key()), stream)
 
     def regenerate(self):
+        web_origin = request.host_url[:-1]
         payload = request.json
+        payload['action'] = 'variant'
+        model = payload['model']
 
         conversation_id = payload.get('conversation_id')
+        stream = payload.get('stream', True)
         if not conversation_id:
             return self.talk()
-
-        prompt = payload['prompt']
-        model = payload['model']
-        message_id = payload['message_id']
-        parent_message_id = payload['parent_message_id']
-        stream = payload.get('stream', True)
+        
+        if model == 'text-davinci-002-render-sha':
+            gpt35_model = getenv('PANDORA_GPT35_MODEL')
+            if not gpt35_model:
+                OAI_Device_ID = request.headers.get('Oai-Device-Id')
+                # return self.__proxy_result(self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID))
+            
+                return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID), stream)
+            else:
+                payload['model'] = gpt35_model
 
         return self.__process_stream(
-            *self.chatgpt.regenerate_reply(prompt, model, conversation_id, message_id, parent_message_id, stream,
-                                           self.__get_token_key()), stream)
+            *self.chatgpt.talk(payload, stream,
+                               self.__get_token_key(), web_origin), stream)
     
     def arkose_dx(self):
         return self.__proxy_result(self.chatgpt.arkose_dx(request, self.__get_token_key()))

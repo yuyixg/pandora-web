@@ -52,6 +52,7 @@
 **API模型支持：**
 
 - COP2GPT
+- DALL·E
 - ChatGLM 4V
 - ChatGLM 4
 - [kimi-free-api项目](https://github.com/LLM-Red-Team/kimi-free-api)
@@ -321,6 +322,19 @@
   ```
 
   ```
+  # 0324使用OAI服务(先将Access Token填入access_token.dat文件)：
+  ## 如果不希望API模型走代理，可在api.json文件中为每个模型配置: "proxy":""
+  docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
+  -e PANDORA_SERVER=0.0.0.0:8008 \
+  -e PANDORA_SITE_PASSWORD=<Your Site Password> \
+  -e OPENAI_API_PREFIX=https://chat.openai.com \
+  -e OPENAI_DEVICE_ID=<OAI官方前端发送对话的请求头参数"Oai-Device-Id"> \
+  -e PANDORA_PROXY=<你的网络代理地址> \
+  -e PANDORA_HISTORY_COUNT=10 \
+  -e PANDORA_BEST_HISTORY=True \
+  -v $PWD/pandora_web_data:/data \
+  ghcr.io/gavingoo/pandora-web:dev
+  
   # 仅API模式：
   docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
   -e PANDORA_SERVER=0.0.0.0:8008 \
@@ -328,18 +342,6 @@
   -e PANDORA_HISTORY_COUNT=10 \
   -e PANDORA_BEST_HISTORY=True \
   -e PANDORA_LOCAL_OPTION=True \
-  -v $PWD/pandora_web_data:/data \
-  ghcr.io/gavingoo/pandora-web:dev
-  
-  # 0324使用OAI服务(先将Access Token填入access_token.dat文件)：
-  ## 如果不希望API模型走代理，可在api.json文件中为每个模型配置: "proxy":""
-  docker run -d -p 8008:8008 --restart=unless-stopped --name pandoraweb \
-  -e PANDORA_SERVER=0.0.0.0:8008 \
-  -e PANDORA_SITE_PASSWORD=<Your Site Password> \
-  -e OPENAI_API_PREFIX=https://chat.openai.com \
-  -e PANDORA_PROXY=<你的网络代理地址> \
-  -e PANDORA_HISTORY_COUNT=10 \
-  -e PANDORA_BEST_HISTORY=True \
   -v $PWD/pandora_web_data:/data \
   ghcr.io/gavingoo/pandora-web:dev
   	
@@ -374,7 +376,7 @@
 ## 其他说明
 
 * 本二改项目是站在原作者[Zhile](https://github.com/wozulong)与其他巨人的肩膀之上，感谢！！
-* 感谢[EmccK](https://github.com/EmccK)佬友对本项目的帮助
+* 感谢[EmccK](https://github.com/EmccK)、Lin Goo佬友对本项目的帮助
 
 * 本人的代码水平太过糟糕，在此表示抱歉
 
@@ -385,6 +387,22 @@
 
 
 ## 更新日志
+
+### 0404：
+
+- 修复老潘多拉UI的对话问题
+- 更好的错误日志输出
+- 由于官方3.5又从ws改回sse，因此不再请求`register-websocket`接口
+
+### 0401：
+
+- 新增支持官方API、DALL·E
+- 修复当请求出错后重新请求，错误地触发了新建对话(表现为出现重复标题的对话但无法打开)的问题
+
+### 0328：
+
+- 修复当启用OAI服务时若请求`register-websocket`报错429，由于直接返回了响应(OAI的报错页)导致泄露(代理)IP的**严重安全问题**，请**公网搭建**的佬友务必更新，同时在此致歉 !
+- 修复多轮对话可能出现报错`sqlite3.OperationalError: no such table: conversations_file`并导致异常的BUG
 
 ### 0324：
 
