@@ -90,6 +90,7 @@ class API:
 
     async def __process_sse(self, resp, conversation_id=None, message_id=None, model=None, action=None, prompt=None):
         if resp.status_code != 200:
+            Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + f'Model: {model} | Status_Code: {str(resp.status_code)}')
             yield await self.__process_sse_except(resp)
             return
         
@@ -116,6 +117,7 @@ class API:
         yield_msg = ''
         create_time = None
         msg_id = None
+        original_conv_id = conversation_id
         index = 0
         # SAVE_ASSISTANT_MSG = False
 
@@ -128,6 +130,8 @@ class API:
             async for utf8_line in resp.aiter_lines():
                 if isinstance(utf8_line, bytes):
                     utf8_line = utf8_line.decode('utf-8')
+
+                # Console.warn(utf8_line)
                 
                 # dev
                 if not SHOW_RESP_MSG and self.PANDORA_DEBUG == 'True':
@@ -163,6 +167,7 @@ class API:
 
                     if json_data.get('message'):
                         if json_data['message'].get('id'):
+                            previous_msg_id = msg_id
                             msg_id = json_data['message']['id']
 
                         if json_data['message'].get('create_time'):
@@ -193,7 +198,12 @@ class API:
                         elif json_data.get('message'):
                             if json_data['message'].get('content'):
                                 if json_data['message']['content'].get('parts'):
-                                    resp_content = json_data['message']['content']['parts'][0]
+                                    if not original_conv_id:
+                                        ## 新对话
+                                        if previous_msg_id == msg_id:
+                                            resp_content = json_data['message']['content']['parts'][0]
+                                    else:
+                                        resp_content = json_data['message']['content']['parts'][0]
 
                 # 适配Gemini
                 if '"text": ' == utf8_line[12:20] and 'gemini' in model:
@@ -228,7 +238,10 @@ class API:
             yield fake_json
 
         # Console.debug_b("End of assistant's answer, save assistant conversation.")
-        LocalConversation.save_conversation(conversation_id, msg_id, resp_content, 'assistant', datetime.now(tzutc()).isoformat(), model, action)
+
+        if os.path.exists(USER_CONFIG_DIR + '/api.json') and not getenv('PANDORA_OAI_ONLY'):
+            if API_DATA.get(model):
+                LocalConversation.save_conversation(conversation_id, msg_id, resp_content, 'assistant', datetime.now(tzutc()).isoformat(), model, action)
   
     async def __process_sse_origin(self, resp):
         yield resp.status_code
@@ -288,15 +301,14 @@ class API:
     #             queue.put(None)
 
     async def _do_request_sse(self, url, headers, data, queue, event, conversation_id=None, message_id=None, model=None, action=None, prompt=None):
-        proxy_url = API_DATA[model].get('proxy')
-        proxy = {
-                    "http": proxy_url,
-                    "https": proxy_url,
-                }if 'proxy' in API_DATA[model] else None
-        
-        # dev
-        # if proxy:
-        #     Console.debug_b('proxy: {}'.format(str(proxy)))
+        proxy = None
+        if os.path.exists(USER_CONFIG_DIR + '/api.json') and not getenv('PANDORA_OAI_ONLY'):
+            if API_DATA.get(model):
+                proxy_url = API_DATA[model].get('proxy')
+                proxy = {
+                            "http": proxy_url,
+                            "https": proxy_url,
+                        }if 'proxy' in API_DATA[model] else None
 
         async with requests.AsyncSession(verify=self.ca_bundle, proxies=proxy if proxy else self.proxy, impersonate='chrome110') as client:
             async with client.stream('POST', url, json=data, headers=headers, timeout=60 if not self.req_timeout else self.req_timeout) as resp:
