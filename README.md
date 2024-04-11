@@ -391,9 +391,9 @@
 
 ### 0412：
 
-- 使用[aurora项目](https://github.com/aurora-develop/aurora)时对话异常
+- 修复使用[aurora项目](https://github.com/aurora-develop/aurora)时对话异常
 - 修复不显示重新生成的对话
-- 触发`BEST_HISTORY`时出错
+- 修复触发`BEST_HISTORY`时出错
 
 ### 0404：
 
