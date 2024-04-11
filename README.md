@@ -51,6 +51,7 @@
 
 **API模型支持：**
 
+- 可3.5免登的[aurora项目](https://github.com/aurora-develop/aurora)
 - COP2GPT
 - DALL·E
 - ChatGLM 4V
