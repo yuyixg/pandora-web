@@ -13,6 +13,7 @@ from werkzeug.exceptions import default_exceptions
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.serving import WSGIRequestHandler
 from datetime import datetime
+import json
 
 from .. import __version__
 from ..exts.hooks import hook_logging
@@ -188,7 +189,7 @@ class ChatBot:
                 ip = request.headers['X-Forwarded-For'].split(',')[0].strip()
         path = request.path
 
-        if not (path.startswith('/widget') or path.startswith('/backend-api') or path.startswith('/_next') or path.startswith('/v1/initialize') or path.startswith('/auth/js/main.92bf7bcd.js.map')):
+        if not (path.startswith('/widget') or path.startswith('/backend-api') or path.startswith('/c/') or path.startswith('/_next') or path.startswith('/v1/initialize') or path.startswith('/auth/js/main.92bf7bcd.js.map')):
             self.logger.error('{}  |  {}  |  {}'.format(ip, path, str(e)))
 
         if request.path.startswith('/c/') and request.method == 'GET':
@@ -472,17 +473,9 @@ class ChatBot:
         return jsonify(data)
 
     def list_models(self):
-        # referer = request.headers.get('Referer')
-        # origin = re.match(r'(https?://[^/]+)', referer)
-        # if origin is not None:
-        #     origin = origin.group(0)
-        # else:
-        #     origin = ''
-
         web_origin = request.host_url[:-1]
-        # Console.warn('origin: {}'.format(origin))
         
-        return self.__proxy_result(self.chatgpt.list_models(True, self.__get_token_key(), web_origin))
+        return self.__proxy_result(self.chatgpt.list_models(True, self.__get_token_key(), web_origin, getenv('PANDORA_GPT35_MODEL'), getenv('PANDORA_GPT4_MODEL')))
     
     @staticmethod
     def fake_conversation_limit():
@@ -764,38 +757,12 @@ class ChatBot:
         web_origin = request.host_url[:-1]
         payload = request.json
         model = payload['model']
-
-        # try:
-        #     prompt = payload['messages'][0]['content']['parts'][0]
-        #     model = payload['model']
-        #     message_id = payload['messages'][0]['id']
-        # except KeyError:
-        #     # 兼容旧ui参数
-        #     prompt = payload['prompt']
-        #     model = payload['model']
-        #     message_id = payload['message_id']
-
-        # parent_message_id = payload['parent_message_id']
-        # conversation_id = payload.get('conversation_id')
-
         stream = payload.get('stream', True)
 
-        if model == 'text-davinci-002-render-sha':
-            gpt35_model = getenv('PANDORA_GPT35_MODEL')
-            if not gpt35_model:
-                OAI_Device_ID = request.headers.get('Oai-Device-Id')
-                
-                return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID), stream)
-            else:
-                payload['model'] = gpt35_model
-                # Console.debug('GPT-3.5 model: {}'.format(model))
-        
-        # if model == 'stable-diffusion-xl-base-1.0' or model == 'dreamshaper-8-lcm' or model == 'stable-diffusion-xl-lightning':
-        #     return self.__proxy_result(self.chatgpt.cfai_text2img(payload, self.__get_token_key()))
+        if model == 'text-davinci-002-render-sha' and not getenv('PANDORA_LOCAL_OPTION'):
+            OAI_Device_ID = request.headers.get('Oai-Device-Id')
 
-        # return self.__process_stream(
-        #     *self.chatgpt.talk(prompt, model, message_id, parent_message_id, conversation_id, stream,
-        #                        self.__get_token_key()), stream)
+            return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID), stream)
                 
         return self.__process_stream(
             *self.chatgpt.talk(payload, stream,
@@ -869,8 +836,6 @@ class ChatBot:
         if stream:
             # status = 200
             if status != 200:
-                import json
-
                 fake_resp = API.error_fallback(json.dumps(status, ensure_ascii=False))
                 return ChatBot.__proxy_result(fake_resp)
             

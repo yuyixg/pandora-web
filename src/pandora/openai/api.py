@@ -37,7 +37,7 @@ if os.path.exists(USER_CONFIG_DIR + '/api.json') and not getenv('PANDORA_OAI_ONL
 
 
 class API:
-    def __init__(self, proxy, ca_bundle):
+    def __init__(self, proxy, ca_bundle, req_timeout=60, LOCAL_OP=False, OAI_ONLY=False, PANDORA_DEBUG=False):
         # self.proxy = proxy    # httpx
         self.proxy = {
                         'http': proxy,
@@ -45,10 +45,10 @@ class API:
                     }if proxy else None
         self.ca_bundle = ca_bundle
         self.web_origin = ''
-        self.LOCAL_OP = getenv('PANDORA_LOCAL_OPTION')
-        self.OAI_ONLY = getenv('PANDORA_OAI_ONLY')
-        self.req_timeout = getenv('PANDORA_TIMEOUT')
-        self.PANDORA_DEBUG = getenv('PANDORA_DEBUG')
+        self.LOCAL_OP = LOCAL_OP
+        self.OAI_ONLY = OAI_ONLY
+        self.req_timeout = req_timeout
+        self.PANDORA_DEBUG = PANDORA_DEBUG
 
         # curl_cffi
         if 'nt' == os.name:
@@ -59,6 +59,9 @@ class API:
         resp = Response()
         resp.headers = {'Content-Type': 'text/event-stream;charset=UTF-8'}
         resp.status_code = 200
+
+        if 'Failed to connect' in content and 'port' in content:
+            content = 'Internal Error!'
 
         if isinstance(content, (dict, list)):
             content = json.dumps(content, ensure_ascii=False)
@@ -162,8 +165,9 @@ class API:
                     if conversation_id is None and json_data.get('conversation_id'):
                         conversation_id = json_data['conversation_id']
 
-                    if json_data.get('id'):
-                        msg_id = json_data['id']
+                    # 0412: 为避免一些OAI接口返回重复id, 因此改为自主生成
+                    # if json_data.get('id'):
+                    #     msg_id = json_data['id']
 
                     if json_data.get('message'):
                         if json_data['message'].get('id'):
@@ -309,18 +313,26 @@ class API:
                             "http": proxy_url,
                             "https": proxy_url,
                         }if 'proxy' in API_DATA[model] else None
+                
+        try:
+            async with requests.AsyncSession(verify=self.ca_bundle, proxies=proxy if proxy else self.proxy, impersonate='chrome110') as client:
+                async with client.stream('POST', url, json=data, headers=headers, timeout=60 if not self.req_timeout else self.req_timeout) as resp:
+                    async for line in self.__process_sse(resp, conversation_id, message_id, model, action, prompt):
+                        queue.put(line)
 
-        async with requests.AsyncSession(verify=self.ca_bundle, proxies=proxy if proxy else self.proxy, impersonate='chrome110') as client:
-            async with client.stream('POST', url, json=data, headers=headers, timeout=60 if not self.req_timeout else self.req_timeout) as resp:
-                async for line in self.__process_sse(resp, conversation_id, message_id, model, action, prompt):
-                    queue.put(line)
+                        if event.is_set():
+                            # await client.aclose()     # httpx
+                            await client.close()
+                            break
 
-                    if event.is_set():
-                        # await client.aclose()     # httpx
-                        await client.close()
-                        break
+                    queue.put(None)
 
-                queue.put(None)
+        except Exception as e:
+            error_detail = traceback.format_exc()
+            Console.debug(error_detail)
+            Console.warn('_do_request_sse FAILED: {}'.format(e))
+
+            return self.error_fallback('Internal Error!') 
 
     def _request_sse(self, url, headers, data, conversation_id=None, message_id=None, model=None, action=None, prompt=None):
         if self.PANDORA_DEBUG == 'True':
@@ -336,7 +348,7 @@ class API:
 
 
 class ChatGPT(API):
-    def __init__(self, access_tokens: dict, proxy=None):
+    def __init__(self, access_tokens: dict, proxy=None, req_timeout=60, LOCAL_OP=False, OAI_ONLY=False, PANDORA_DEBUG=False):
         self.access_tokens = access_tokens
         self.access_token_key_list = list(access_tokens)
         self.default_token_key = self.access_token_key_list[0]
@@ -347,7 +359,7 @@ class ChatGPT(API):
                 'https': proxy,
             } if proxy else None,
             'verify': where(),
-            'timeout': 60,
+            'timeout': req_timeout,
             'allow_redirects': False,
             'impersonate': 'chrome110',
         }
@@ -373,7 +385,7 @@ class ChatGPT(API):
         hook_logging(level=self.log_level, format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
         self.logger = logging.getLogger('waitress')
 
-        super().__init__(proxy, self.req_kwargs['verify'])
+        super().__init__(proxy, self.req_kwargs['verify'], req_timeout, LOCAL_OP, OAI_ONLY, PANDORA_DEBUG)
 
         if self.req_timeout:
             self.req_kwargs['timeout'] = self.req_timeout
@@ -469,7 +481,7 @@ class ChatGPT(API):
     def list_token_keys(self):
         return self.access_token_key_list
     
-    def list_models(self, raw=False, token=None, web_origin=None):
+    def list_models(self, raw=False, token=None, web_origin=None, gpt35_model=None, gpt4_model=None):
         self.web_origin = web_origin
 
         if self.OAI_ONLY:
@@ -484,44 +496,45 @@ class ChatGPT(API):
                 
                 return
             
-            except:
+            except Exception as e:
+                error_detail = traceback.format_exc()
+                Console.debug(error_detail)
+                Console.warn('list_conversations FAILED: {}'.format(e))
                 return
 
-        gpt4_model = getenv('PANDORA_GPT4_MODEL')
-        gpt4_category = {
-                        "category": "gpt_4",
-                        "human_category_name": "GPT-4",
-                        "subscription_level": "free",
-                        "default_model": gpt4_model if gpt4_model else "gpt-4",
-                        "plugins_model": gpt4_model if gpt4_model else "gpt-4"
-                    }
-
         result = {
-            "models": [
-                {
-                    "slug": "text-davinci-002-render-sha",
-                    "max_tokens": 8191,
-                    "title": "Default (GPT-3.5)",
-                    "description": "Our fastest model, great for most everyday tasks.",
-                    "tags": [
-                        "gpt3.5"
-                    ],
-                    "capabilities": {},
-                    "product_features": {}
-                }
-            ],
+            "models": [],
             "categories": [
                 {
                     "category": "gpt_3.5",
                     "human_category_name": "GPT-3.5",
                     "subscription_level": "free",
-                    "default_model": "text-davinci-002-render-sha",
-                    "code_interpreter_model": "text-davinci-002-render-sha-code-interpreter",
-                    "plugins_model": "text-davinci-002-render-sha-plugins"
+                    "default_model": gpt35_model if gpt35_model else "text-davinci-002-render-sha",
+                    "code_interpreter_model": gpt35_model if gpt35_model else "text-davinci-002-render-sha-code-interpreter",
+                    "plugins_model": gpt35_model if gpt35_model else "text-davinci-002-render-sha-plugins"
+                },
+                {
+                    "category": "gpt_4",
+                    "human_category_name": "GPT-4",
+                    "subscription_level": "free",
+                    "default_model": gpt4_model if gpt4_model else "gpt-4",
+                    "plugins_model": gpt4_model if gpt4_model else "gpt-4"
                 }
             ]
         }
-        result['categories'].append(gpt4_category)
+
+        if not gpt35_model:
+            result['models'].append({
+                "slug": "text-davinci-002-render-sha",
+                "max_tokens": 8191,
+                "title": "Default (GPT-3.5)",
+                "description": "Our fastest model, great for most everyday tasks.",
+                "tags": [
+                    "gpt3.5"
+                ],
+                "capabilities": {},
+                "product_features": {}
+            })
 
         if API_DATA:
             for item in API_DATA.values():

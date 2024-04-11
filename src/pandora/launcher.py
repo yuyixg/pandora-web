@@ -539,7 +539,7 @@ def main():
 
         chatgpt = TurboGPT(access_tokens, args.proxy)
     else:
-        chatgpt = ChatGPT(access_tokens, args.proxy)
+        chatgpt = ChatGPT(access_tokens, args.proxy, int(args.timeout), args.local, args.oai_only, args.debug)
 
     if args.server or getenv("PANDORA_SERVER"):
         return ChatBotServer(chatgpt, args.verbose).run(args.server or getenv("PANDORA_SERVER"), args.threads or int(getenv("PANDORA_THREADS", 8)))

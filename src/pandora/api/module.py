@@ -149,15 +149,9 @@ class LocalConversation:
             )
         ''')    # 此处的id为conversation_id
 
-        if action == 'variant':
-            convs_database_cursor.execute("UPDATE conversations SET role = ?, message = ?, model = ?, create_time = ?, local_time = ? WHERE message_id=?;",
-            ( role, content, model, str(time), str(local_time), message_id)
-            )
-
-        elif action == 'next':
+        if not (action == 'variant' and role == 'user'):
             convs_database_cursor.execute("INSERT INTO conversations (id, message_id, role, message, model, create_time, local_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (conversation_id, message_id, role, content, model, str(time), str(local_time))
-            )
+                (conversation_id, message_id, role, content, model, str(time), str(local_time)))
         
         convs_database_cursor.execute("UPDATE list_conversations SET update_time = ? WHERE id = ?",
             (str(time), conversation_id)
@@ -316,8 +310,9 @@ class LocalConversation:
                 "safe_urls": []
             }
 
+            NEXT_IS_USER = True
+            last_user_msgid = None
             for i, item in enumerate(conversation_data):
-                # Console.warn(item)
                 message_id = item[1]
                 role = item[2]
                 message = item[3]
@@ -360,12 +355,6 @@ class LocalConversation:
                         "children": []
                 }
 
-                # try:
-                #     parts = eval(parts)
-                #     mapping_item['message']['content']['parts'] = parts
-                # except Exception:
-                #     mapping_item['message']['content']['parts'] = [parts]
-
                 parts, attachments = LocalConversation.get_conversations_attachments(message_id)
                 if attachments:
                     # Console.debug_b(f'get_conversation: {message_id} attachments: {str(attachments)}')
@@ -376,33 +365,42 @@ class LocalConversation:
                     mapping_item['children'].append(children)
 
                 if role == 'user':
+                    NEXT_IS_USER = False
+                    last_user_msgid = message_id
                     mapping_item['message']['metadata']['request_id'] = "Pandora-SIN"
                     mapping_item['message']['metadata']['timestamp_'] = "absolute"
                     mapping_item['message']['metadata']['message_type'] = None
 
                 if role == 'assistant':
+                    if NEXT_IS_USER:
+                        mapping_item['parent'] = last_user_msgid
+                        mapping_item['message']['metadata']['parent_id'] = last_user_msgid
+
+                        if isinstance(base['mapping'][list(base['mapping'].keys())[-2]]['children'], list):
+                            base['mapping'][last_user_msgid]['children'].append(message_id)
+                            base['mapping'][list(base['mapping'].keys())[-1]]['children'] = []
+
+                    else:
+                        mapping_item['message']['metadata']['parent_id'] = parent
+                    
+                    NEXT_IS_USER = True
                     mapping_item['message']['metadata']['finish_details'] = {"type": "stop", "stop_tokens": [100260]}
                     mapping_item['message']['metadata']['citations'] = []
                     mapping_item['message']['metadata']['gizmo_id'] = None
                     mapping_item['message']['metadata']['is_complete'] = True
                     mapping_item['message']['metadata']['message_type'] = None
                     mapping_item['message']['metadata']['model_slug'] = model
-                    mapping_item['message']['metadata']['parent_id'] = parent
+                    # mapping_item['message']['metadata']['parent_id'] = parent
                     mapping_item['message']['metadata']['request_id'] = "Pandora-SIN"
                     mapping_item['message']['metadata']['timestamp_'] = "absolute"
-                    
-                # Console.debug_b('第{}条对话parent: {}'.format(i+1, parent))
-                
-                # Console.debug(mapping_item)
+
                 base['mapping'][message_id] = mapping_item
-                
-                # Console.debug_b('role: {}   ||   msg: {}'.format(base['mapping'][message_id]['message']['author']['role'], base['mapping'][message_id]['message']['content']['parts'][0]))
                 
             if share:
                 convs_database_cursor.close()
+                
                 return {"title": base["title"], "create_time": base["create_time"], "update_time": base["update_time"], "conversation_id": base["conversation_id"], "mapping": base["mapping"]}
 
-            # Console.warn(base)
             conv = LocalConversation.fake_resp(fake_data=json.dumps(base, ensure_ascii=False))
 
             convs_database_cursor.close()
@@ -439,8 +437,12 @@ class LocalConversation:
                 history_total = int(convs_database_cursor.execute("SELECT COUNT(message_id) FROM conversations WHERE id=?", (conversation_id,)).fetchone()[0])
 
                 if int(history_count) < history_total:
-                    first_history_data = convs_database_cursor.execute("SELECT role, message FROM conversations WHERE id=? ORDER BY create_time ASC LIMIT 1", (conversation_id,)).fetchone()
+                    first_history_data = convs_database_cursor.execute("SELECT message_id, role, message FROM conversations WHERE id=? ORDER BY create_time ASC LIMIT 1", (conversation_id,)).fetchall()
                     first_history_dict = [dict(zip([column[0] for column in convs_database_cursor.description], row)) for row in first_history_data]
+
+                    if getenv('PANDORA_DEBUG'):
+                        Console.debug(f'Because of PANDORA_BEST_HISTORY, add first history message: {str(first_history_dict[0])}')
+
                     history_dict.insert(0, first_history_dict[0])
 
             # history_json = json.dumps(history_dict, ensure_ascii=False)
