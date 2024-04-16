@@ -6,10 +6,7 @@
     "builds": [
       {
         "src": "src/pandora/launcher.py",
-        "use": "@vercel/python",
-        "config": {
-            "pythonVersion": "3.10"
-          }
+        "use": "@vercel/python"
       }
     ],
     "routes": [
