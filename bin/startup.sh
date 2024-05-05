@@ -126,6 +126,15 @@ if [ -n "${PANDORA_THREADS}" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --threads ${PANDORA_THREADS}"
 fi
 
+if [ "${PANDORA_ISOLATION}" = "True" ]; then
+  PANDORA_ARGS="${PANDORA_ARGS} -i"
+fi
+
+if [ -n "${PANDORA_ISOLATION_MASTERCODE}" ]; then
+  PANDORA_ARGS="${PANDORA_ARGS} --isolate_master ${PANDORA_ISOLATION_MASTERCODE}"
+fi
+
+
 if [ -n "${PANDORA_CLOUD}" ]; then
   PANDORA_COMMAND="pandora-cloud"
 fi
