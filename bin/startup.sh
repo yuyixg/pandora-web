@@ -130,6 +130,10 @@ if [ -n "${PANDORA_CLOUD}" ]; then
   PANDORA_COMMAND="pandora-cloud"
 fi
 
+if [ -n "${PANDORA_ISOLATION_MASTERCODE}" ]; then
+  PANDORA_ARGS="${PANDORA_ARGS} --isolate_master ${PANDORA_ISOLATION_MASTERCODE}"
+fi
+
 export USER_CONFIG_DIR
 
 # Execute the Pandora command with the arguments

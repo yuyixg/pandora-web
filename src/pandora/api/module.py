@@ -10,6 +10,7 @@ import time
 import os
 from os.path import join
 from os import getenv
+import os
 import json
 from requests.models import Response
 import jwt
@@ -20,12 +21,15 @@ API_AUTH_DATA = {}
 UPLOAD_TYPE_WHITELIST = []
 UPLOAD_TYPE_BLACKLIST = []
 
+
 class LocalConversation:
     global API_DATA
     global API_AUTH_DATA
     global API_CONFIG_FILE
     global UPLOAD_TYPE_WHITELIST
     global UPLOAD_TYPE_BLACKLIST
+    global ISOLATION_FLAG
+    global ISOLATION_MASTER_CODE
 
     if os.path.exists(API_CONFIG_FILE):
         with open(API_CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -65,7 +69,41 @@ class LocalConversation:
                 if auth:
                     auth_list = auth.split(',')
                     API_AUTH_DATA[slug] = __auth_generator(auth_list)
+        
 
+    @staticmethod
+    def initialize_database():
+        global ISOLATION_FLAG
+        global ISOLATION_MASTER_CODE
+
+        ISOLATION_FLAG = getenv('PANDORA_ISOLATION')
+        ISOLATION_MASTER_CODE = getenv('PANDORA_ISOLATION_MASTERCODE')
+
+        convs_database_cursor = convs_database.cursor()
+
+        if ISOLATION_FLAG == 'True':
+            convs_database_cursor.execute('''
+                CREATE TABLE IF NOT EXISTS list_conversations_isolated (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    create_time TEXT NOT NULL,
+                    update_time TEXT NOT NULL,
+                    isolation_code TEXT NOT NULL,
+                    visible BOOLEAN DEFAULT 1
+                )
+            ''')  
+        else:
+            convs_database_cursor.execute('''
+                CREATE TABLE IF NOT EXISTS list_conversations (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    create_time TEXT NOT NULL,
+                    update_time TEXT NOT NULL,
+                    visible BOOLEAN DEFAULT 1
+                )
+            ''')
+        convs_database.commit()
+        convs_database_cursor.close()
 
     @staticmethod
     def get_url(model):
@@ -110,23 +148,43 @@ class LocalConversation:
         )
 
     @staticmethod
-    def create_conversation(id, title, time):
-        title = title[:40]
+    def create_conversation(id, title, time, isolation_code=None):
+        title = title[:40] if title else 'New Chat'
 
         convs_database_cursor = convs_database.cursor()
-        convs_database_cursor.execute('''
-            CREATE TABLE IF NOT EXISTS list_conversations (
-                id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                create_time TEXT NOT NULL,
-                update_time TEXT NOT NULL,
-                visible BOOLEAN DEFAULT 1
-            )
-        ''')
 
-        convs_database_cursor.execute("INSERT INTO list_conversations (id, title, create_time, update_time, visible) VALUES (?, ?, ?, ?, ?)",
-            (id, title, str(time), str(time), 1)
-        )
+        # 已修改为初始化时创建数据表. 2024-05-05
+        # if ISOLATION_FLAG == 'True':
+        #     convs_database_cursor.execute('''
+        #     CREATE TABLE IF NOT EXISTS list_conversations_isolated (
+        #         id TEXT PRIMARY KEY,
+        #         title TEXT NOT NULL,
+        #         create_time TEXT NOT NULL,
+        #         update_time TEXT NOT NULL,
+        #         isolation_code TEXT NOT NULL,
+        #         visible BOOLEAN DEFAULT 1
+        #     )
+        # ''')
+            
+        # else:
+        #     convs_database_cursor.execute('''
+        #         CREATE TABLE IF NOT EXISTS list_conversations (
+        #             id TEXT PRIMARY KEY,
+        #             title TEXT NOT NULL,
+        #             create_time TEXT NOT NULL,
+        #             update_time TEXT NOT NULL,
+        #             visible BOOLEAN DEFAULT 1
+        #         )
+        #     ''')
+
+        if ISOLATION_FLAG == 'True':
+            convs_database_cursor.execute("INSERT INTO list_conversations_isolated (id, title, create_time, update_time, isolation_code, visible) VALUES (?, ?, ?, ?, ?, ?)",
+                (id, title, str(time), str(time), isolation_code, 1)
+            )
+        else:
+            convs_database_cursor.execute("INSERT INTO list_conversations (id, title, create_time, update_time, visible) VALUES (?, ?, ?, ?, ?)",
+                (id, title, str(time), str(time), 1)
+            )
         
         convs_database.commit()
         convs_database_cursor.close()
@@ -165,11 +223,11 @@ class LocalConversation:
         convs_database_cursor = convs_database.cursor()
 
         if getenv('PANDORA_TRUE_DELETE'):
-            convs_database_cursor.execute("DELETE FROM list_conversations WHERE id=?", (conversation_id,))
+            convs_database_cursor.execute(f"DELETE FROM {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} WHERE id=?", (conversation_id,))
             convs_database_cursor.execute("DELETE FROM conversations WHERE id=?", (conversation_id,))
 
         else:
-            convs_database_cursor.execute("UPDATE list_conversations SET visible = ? WHERE id=?;",(0, conversation_id))
+            convs_database_cursor.execute(f"UPDATE {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} SET visible = ? WHERE id=?;",(0, conversation_id))
 
         convs_database.commit()
         convs_database_cursor.close()
@@ -180,7 +238,7 @@ class LocalConversation:
     def rename_conversation(title, conversation_id):
         convs_database_cursor = convs_database.cursor()
 
-        convs_database_cursor.execute("UPDATE list_conversations SET title = ? WHERE id=?;",(title, conversation_id))
+        convs_database_cursor.execute(f"UPDATE {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} SET title = ? WHERE id=?;",(title, conversation_id))
 
         convs_database.commit()
         convs_database_cursor.close()
@@ -188,46 +246,63 @@ class LocalConversation:
         return LocalConversation.fake_resp(fake_data=json.dumps({"success":True}))
 
     @staticmethod
-    def list_conversations(offset, limit):
-            convs_database_cursor = convs_database.cursor()
-            
-            try:
+    def list_conversations(offset, limit, isolation_code=None):
+        convs_database_cursor = convs_database.cursor()
+        
+        try:
+            if isolation_code:
+                if isolation_code == ISOLATION_MASTER_CODE:
+                    convs_total = convs_database_cursor.execute("SELECT COUNT(id) FROM list_conversations_isolated WHERE visible=1").fetchone()[0]
+                else:
+                    convs_total = convs_database_cursor.execute("SELECT COUNT(id) FROM list_conversations_isolated WHERE isolation_code=? AND visible=1", (isolation_code,)).fetchone()[0]
+            else:
                 convs_total = convs_database_cursor.execute("SELECT COUNT(id) FROM list_conversations WHERE visible=1").fetchone()[0]
-            except Exception as e:
-                convs_total = 0
-                Console.warn(str(e))
+        except Exception as e:
+            convs_total = 0
+            Console.warn(str(e))
 
-            try:
+        try:
+            if isolation_code:
+                if isolation_code == ISOLATION_MASTER_CODE:
+                    convs_data = convs_database_cursor.execute("SELECT * FROM list_conversations_isolated WHERE visible=1 ORDER BY update_time DESC LIMIT ?, ?", (offset, limit)).fetchall()
+                else:
+                    convs_data = convs_database_cursor.execute("SELECT * FROM list_conversations_isolated WHERE isolation_code=? AND visible=1 ORDER BY update_time DESC LIMIT ?, ?", (isolation_code, offset, limit)).fetchall()
+            else:
                 convs_data = convs_database_cursor.execute("SELECT * FROM list_conversations WHERE visible=1 ORDER BY update_time DESC LIMIT ?, ?", (offset, limit)).fetchall()
-            except Exception as e:
-                Console.warn(str(e))
+        except Exception as e:
+            Console.warn(str(e))
 
-                convs_database_cursor.close()
-                return None
-            
             convs_database_cursor.close()
+            return None
+        
+        convs_database_cursor.close()
 
-            convs_dict = [dict(zip([column[0] for column in convs_database_cursor.description], row)) for row in convs_data]
-            # Console.debug_b('对话列表计数: '+str(len(convs_dict)))
-            data = {'list_data': convs_dict, 'total': convs_total}
-            # list = json.dumps(convs_dict, ensure_ascii=False)
+        convs_dict = [dict(zip([column[0] for column in convs_database_cursor.description], row)) for row in convs_data]
+        # Console.debug_b('对话列表计数: '+str(len(convs_dict)))
+        data = {'list_data': convs_dict, 'total': convs_total}
+        # list = json.dumps(convs_dict, ensure_ascii=False)
 
-            # Console.debug_b('Read local conversation dict: ')
-            # for item in convs_dict:
-            #     # print(item)
-            #     self.logger.info(item)
+        # Console.debug_b('Read local conversation dict: ')
+        # for item in convs_dict:
+        #     # print(item)
+        #     self.logger.info(item)
 
-            # Console.debug_b('list_json: ')
-            # print(convs_dict)
+        # Console.debug_b('list_json: ')
+        # print(convs_dict)
 
-            return data
+        return data
 
     @staticmethod
-    def check_conversation_exist(conversation_id):
+    def check_conversation_exist(conversation_id, isolation_code=None):
         convs_database_cursor = convs_database.cursor()
 
         try:
-            conversation_info = convs_database_cursor.execute("SELECT id FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
+            # if isolation_code:
+            #     conversation_info = convs_database_cursor.execute("SELECT id FROM list_conversations_isolated WHERE id=? AND isolation_code=? AND visible=1", (conversation_id, isolation_code)).fetchone()
+            # else:
+            #     conversation_info = convs_database_cursor.execute("SELECT id FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
+
+            conversation_info = convs_database_cursor.execute(f"SELECT id FROM {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} WHERE id=? AND visible=1", (conversation_id,)).fetchone()
 
             convs_database_cursor.close()
             return conversation_info
@@ -239,175 +314,185 @@ class LocalConversation:
             return None
 
     @staticmethod
-    def get_conversation(conversation_id, share=False):
+    def get_conversation(conversation_id, isolation_code=None, share=False):
         convs_database_cursor = convs_database.cursor()
 
-        list_conversation_info = convs_database_cursor.execute("SELECT * FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
-        # Console.debug_b('conversation_data: {}'.format(conversation_data))
+        # if isolation_code:
+        #     list_conversation_info = convs_database_cursor.execute("SELECT * FROM list_conversations_isolated WHERE id=? AND isolation_code=? AND visible=1", (conversation_id, isolation_code)).fetchone()
+        # else:
+        #     list_conversation_info = convs_database_cursor.execute("SELECT * FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
+
+        list_conversation_info = convs_database_cursor.execute(f"SELECT * FROM {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} WHERE id=? AND visible=1", (conversation_id,)).fetchone()
+        
         
         if list_conversation_info:
             # Console.warn(f'Conversation ID: {conversation_id}  ||  Title: {list_conversation_info[1]}')
             conversation_data = convs_database_cursor.execute("SELECT * FROM conversations WHERE id=?", (conversation_id,)).fetchall()
 
-            title = list_conversation_info[1]
-            create_time = list_conversation_info[2]
-            update_time = list_conversation_info[3]
+            if conversation_data:
+                title = list_conversation_info[1]
+                create_time = list_conversation_info[2]
+                update_time = list_conversation_info[3]
 
-            # Console.debug_b('组装对话: title={}, create_time={}, update_time={}'.format(title, create_time, update_time))
-            create_time_unix = parse(create_time).timestamp()
-            update_time_unix = parse(update_time).timestamp()
-            base = {
-                "title": title,
-                "create_time": create_time_unix,
-                "update_time": update_time_unix,
-                "mapping": {
-                            "123456": {
-                                "id": "123456",
-                                "message": {
+                # Console.debug_b('组装对话: title={}, create_time={}, update_time={}'.format(title, create_time, update_time))
+                create_time_unix = parse(create_time).timestamp()
+                update_time_unix = parse(update_time).timestamp()
+                base = {
+                    "title": title,
+                    "create_time": create_time_unix,
+                    "update_time": update_time_unix,
+                    "mapping": {
+                                "123456": {
                                     "id": "123456",
-                                    "author": {
-                                        "role": "system",
-                                        "name": None,
-                                        "metadata": {}
+                                    "message": {
+                                        "id": "123456",
+                                        "author": {
+                                            "role": "system",
+                                            "name": None,
+                                            "metadata": {}
+                                        },
+                                        "create_time": None,
+                                        "update_time": None,
+                                        "content": {
+                                            "content_type": "text",
+                                            "parts": [
+                                                ""
+                                            ]
+                                        },
+                                        "status": "finished_successfully",
+                                        "end_turn": True,
+                                        "weight": 0.0,
+                                        "metadata": {
+                                            "is_visually_hidden_from_conversation": True
+                                        },
+                                        "recipient": "all"
                                     },
-                                    "create_time": None,
-                                    "update_time": None,
-                                    "content": {
-                                        "content_type": "text",
-                                        "parts": [
-                                            ""
-                                        ]
-                                    },
-                                    "status": "finished_successfully",
-                                    "end_turn": True,
-                                    "weight": 0.0,
-                                    "metadata": {
-                                        "is_visually_hidden_from_conversation": True
-                                    },
-                                    "recipient": "all"
+                                    "parent": "654321",
+                                    "children": [
+                                        conversation_data[0][1]
+                                    ]
                                 },
-                                "parent": "654321",
-                                "children": [
-                                    conversation_data[0][1]
-                                ]
-                            },
-                            "654321": {
-                                "id": "654321",
-                                "message": None,
-                                "parent": None,
-                                "children": [
-                                    "123456"
-                                ]
-                            }
-                },
-                "moderation_results": [],
-                "current_node": conversation_data[-1][1],
-                "plugin_ids": None,
-                "conversation_id": conversation_id,
-                "conversation_template_id": None,
-                "gizmo_id": None,
-                "is_archived": False,
-                "safe_urls": []
-            }
-
-            NEXT_IS_USER = True
-            last_user_msgid = None
-            for i, item in enumerate(conversation_data):
-                message_id = item[1]
-                role = item[2]
-                message = item[3]
-                # parts = item[3]
-                model = item[4]
-                message_create_time = item[5]
-                message_create_time_unix = parse(message_create_time).timestamp()
-                parent = "123456" if i == 0 else conversation_data[i-1][1]
-
-                try:
-                    children = conversation_data[i+1][1]
-                except IndexError:
-                    children = None
-
-                # Console.debug_b('组装对话: \nmessage_id: {}, role: {}, message: {}, model: {}, message_create_time: {}, parent: {}, children: {}'
-                #                 .format(message_id, role, message, model, message_create_time, parent, children))
-                
-                mapping_item = {
-                        "id": message_id,
-                        "message": {
-                            "id": message_id,
-                            "author": {
-                                "role": role,
-                                "name": None,
-                                "metadata": {}
-                            },
-                            "create_time": message_create_time_unix,
-                            "update_time": None,
-                            "content": {
-                                "content_type": "text",
-                                "parts": [message]
-                            },
-                            "status": "finished_successfully",
-                            "end_turn": True,
-                            "weight": 1.0,
-                            "metadata": {},
-                            "recipient": "all"
-                        },
-                        "parent": "123456" if i == 0 else parent,
-                        "children": []
+                                "654321": {
+                                    "id": "654321",
+                                    "message": None,
+                                    "parent": None,
+                                    "children": [
+                                        "123456"
+                                    ]
+                                }
+                    },
+                    "moderation_results": [],
+                    "current_node": conversation_data[-1][1],
+                    "plugin_ids": None,
+                    "conversation_id": conversation_id,
+                    "conversation_template_id": None,
+                    "gizmo_id": None,
+                    "is_archived": False,
+                    "safe_urls": []
                 }
 
-                parts, attachments = LocalConversation.get_conversations_attachments(message_id)
-                if attachments:
-                    # Console.debug_b(f'get_conversation: {message_id} attachments: {str(attachments)}')
-                    mapping_item['message']['metadata']['attachments'] = attachments
-                    mapping_item['message']['content']['parts'] = parts
+                NEXT_IS_USER = True
+                last_user_msgid = None
+                for i, item in enumerate(conversation_data):
+                    message_id = item[1]
+                    role = item[2]
+                    message = item[3]
+                    # parts = item[3]
+                    model = item[4]
+                    message_create_time = item[5]
+                    message_create_time_unix = parse(message_create_time).timestamp()
+                    parent = "123456" if i == 0 else conversation_data[i-1][1]
 
-                if children:
-                    mapping_item['children'].append(children)
+                    try:
+                        children = conversation_data[i+1][1]
+                    except IndexError:
+                        children = None
 
-                if role == 'user':
-                    NEXT_IS_USER = False
-                    last_user_msgid = message_id
-                    mapping_item['message']['metadata']['request_id'] = "Pandora-SIN"
-                    mapping_item['message']['metadata']['timestamp_'] = "absolute"
-                    mapping_item['message']['metadata']['message_type'] = None
-
-                if role == 'assistant':
-                    if NEXT_IS_USER:
-                        mapping_item['parent'] = last_user_msgid
-                        mapping_item['message']['metadata']['parent_id'] = last_user_msgid
-
-                        if isinstance(base['mapping'][list(base['mapping'].keys())[-2]]['children'], list):
-                            base['mapping'][last_user_msgid]['children'].append(message_id)
-                            base['mapping'][list(base['mapping'].keys())[-1]]['children'] = []
-
-                    else:
-                        mapping_item['message']['metadata']['parent_id'] = parent
+                    # Console.debug_b('组装对话: \nmessage_id: {}, role: {}, message: {}, model: {}, message_create_time: {}, parent: {}, children: {}'
+                    #                 .format(message_id, role, message, model, message_create_time, parent, children))
                     
-                    NEXT_IS_USER = True
-                    mapping_item['message']['metadata']['finish_details'] = {"type": "stop", "stop_tokens": [100260]}
-                    mapping_item['message']['metadata']['citations'] = []
-                    mapping_item['message']['metadata']['gizmo_id'] = None
-                    mapping_item['message']['metadata']['is_complete'] = True
-                    mapping_item['message']['metadata']['message_type'] = None
-                    mapping_item['message']['metadata']['model_slug'] = model
-                    # mapping_item['message']['metadata']['parent_id'] = parent
-                    mapping_item['message']['metadata']['request_id'] = "Pandora-SIN"
-                    mapping_item['message']['metadata']['timestamp_'] = "absolute"
+                    mapping_item = {
+                            "id": message_id,
+                            "message": {
+                                "id": message_id,
+                                "author": {
+                                    "role": role,
+                                    "name": None,
+                                    "metadata": {}
+                                },
+                                "create_time": message_create_time_unix,
+                                "update_time": None,
+                                "content": {
+                                    "content_type": "text",
+                                    "parts": [message]
+                                },
+                                "status": "finished_successfully",
+                                "end_turn": True,
+                                "weight": 1.0,
+                                "metadata": {},
+                                "recipient": "all"
+                            },
+                            "parent": "123456" if i == 0 else parent,
+                            "children": []
+                    }
 
-                base['mapping'][message_id] = mapping_item
-                
-            if share:
+                    parts, attachments = LocalConversation.get_conversations_attachments(message_id)
+                    if attachments:
+                        # Console.debug_b(f'get_conversation: {message_id} attachments: {str(attachments)}')
+                        mapping_item['message']['metadata']['attachments'] = attachments
+                        mapping_item['message']['content']['parts'] = parts
+
+                    if children:
+                        mapping_item['children'].append(children)
+
+                    if role == 'user':
+                        NEXT_IS_USER = False
+                        last_user_msgid = message_id
+                        mapping_item['message']['metadata']['request_id'] = "Pandora-SIN"
+                        mapping_item['message']['metadata']['timestamp_'] = "absolute"
+                        mapping_item['message']['metadata']['message_type'] = None
+
+                    if role == 'assistant':
+                        if NEXT_IS_USER:
+                            mapping_item['parent'] = last_user_msgid
+                            mapping_item['message']['metadata']['parent_id'] = last_user_msgid
+
+                            if isinstance(base['mapping'][list(base['mapping'].keys())[-2]]['children'], list):
+                                base['mapping'][last_user_msgid]['children'].append(message_id)
+                                base['mapping'][list(base['mapping'].keys())[-1]]['children'] = []
+
+                        else:
+                            mapping_item['message']['metadata']['parent_id'] = parent
+                        
+                        NEXT_IS_USER = True
+                        mapping_item['message']['metadata']['finish_details'] = {"type": "stop", "stop_tokens": [100260]}
+                        mapping_item['message']['metadata']['citations'] = []
+                        mapping_item['message']['metadata']['gizmo_id'] = None
+                        mapping_item['message']['metadata']['is_complete'] = True
+                        mapping_item['message']['metadata']['message_type'] = None
+                        mapping_item['message']['metadata']['model_slug'] = model
+                        # mapping_item['message']['metadata']['parent_id'] = parent
+                        mapping_item['message']['metadata']['request_id'] = "Pandora-SIN"
+                        mapping_item['message']['metadata']['timestamp_'] = "absolute"
+
+                    base['mapping'][message_id] = mapping_item
+                    
+                if share:
+                    convs_database_cursor.close()
+                    
+                    return {"title": base["title"], "create_time": base["create_time"], "update_time": base["update_time"], "conversation_id": base["conversation_id"], "mapping": base["mapping"]}
+
+                conv = LocalConversation.fake_resp(fake_data=json.dumps(base, ensure_ascii=False))
+
                 convs_database_cursor.close()
-                
-                return {"title": base["title"], "create_time": base["create_time"], "update_time": base["update_time"], "conversation_id": base["conversation_id"], "mapping": base["mapping"]}
-
-            conv = LocalConversation.fake_resp(fake_data=json.dumps(base, ensure_ascii=False))
-
-            convs_database_cursor.close()
-            return conv
+                return conv
+            
+            else:
+                convs_database_cursor.close()
+                return None
         
         convs_database_cursor.close()
-        return
+        return None
 
     @staticmethod
     def get_history_conversation(conversation_id, model_history_count=None):

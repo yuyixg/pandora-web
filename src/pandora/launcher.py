@@ -347,6 +347,21 @@ def main():
         help='Prints the request body(first 500 characters) of the message sent with the first response received.',
         action='store_true',
     )
+
+    parser.add_argument(
+        '-i',
+        '--isolate',
+        help='Isolated user conversation(Isolation Mode).',
+        action='store_true',
+    )
+
+    parser.add_argument(
+        '--isolate_master',
+        help='This isolation code allows manager to view all user conversations.',
+        required=False,
+        type=str,
+        default=None,
+    )
     
     args, _ = parser.parse_known_args()
     __show_verbose = args.verbose
@@ -369,7 +384,7 @@ def main():
             raise Exception('No args.proxy_api or env.OPENAI_API_PREFIX !')
         else:
             if not os.path.exists(USER_CONFIG_DIR + '/api.json'):
-                raise Exception('You had enabled local mode, but no "api.json" file found in user config dir!')
+                raise Exception(f'You had enabled local mode, but no "api.json" file found in user config dir({USER_CONFIG_DIR})!')
         
     if not login_url:
         if args.login_url:
@@ -453,6 +468,15 @@ def main():
 
     if args.debug:
         os.environ['PANDORA_DEBUG'] = 'True'
+
+    if args.isolate or getenv('PANDORA_ISOLATION') == 'True':
+        if getenv('PANDORA_SITE_PASSWORD') == 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
+            raise Exception('You have not set the site password, Unable to enable Isolation Mode!')
+        
+        os.environ['PANDORA_ISOLATION'] = 'True'
+
+    if args.isolate_master:
+        os.environ['PANDORA_ISOLATION_MASTERCODE'] = args.isolate_master
 
     
     Console.debug_b(
@@ -539,7 +563,7 @@ def main():
 
         chatgpt = TurboGPT(access_tokens, args.proxy)
     else:
-        chatgpt = ChatGPT(access_tokens, args.proxy, int(args.timeout), args.local, args.oai_only, args.debug)
+        chatgpt = ChatGPT(access_tokens, args.proxy, int(args.timeout), args.local, args.oai_only, args.debug or getenv("PANDORA_DEBUG"), args.isolate)
 
     if args.server or getenv("PANDORA_SERVER"):
         return ChatBotServer(chatgpt, args.verbose).run(args.server or getenv("PANDORA_SERVER"), args.threads or int(getenv("PANDORA_THREADS", 8)))

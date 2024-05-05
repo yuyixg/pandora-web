@@ -32,7 +32,8 @@
 ## 相关特性
 
 - 两套UI任君选择，随意搭配
-- 设置站点密码
+- 支持设置站点密码
+- 支持隔离用户对话
 - 支持老Pandora式的无密码直接访问(见后文配置说明)
 - API对话自动保存
 - 重定向3.5/4模型
@@ -40,7 +41,7 @@
 - 模型`Auth`轮询
 - 单独指定模型的网络代理
 - 设定内置Prompt
-- 隐藏式(假删除)对话(默认,可更改)
+- 隐藏(假删除)对话(默认,可更改)
 - 仅OAI(仅支持3.5模型)/API或二者共存运行
 - 文生图模型可调用其他文本模型以生成/优化你的绘图Prompt
 - 对于某些以二进制文件(Blob对象)作为响应的文生图模型(比如Cloudflare AI)，自动保存并转为url输出(若使用了CDN服务，请注意**流量消耗**)
@@ -51,7 +52,7 @@
 
 **API模型支持：**
 
-- 可3.5免登的[aurora项目](https://github.com/aurora-develop/aurora)
+- 支持3.5免登的[aurora项目](https://github.com/aurora-develop/aurora)
 - COP2GPT
 - DALL·E
 - ChatGLM 4V
@@ -106,6 +107,8 @@
 --file_access: 是否允许外网直接访问文件(如果对话希望以url携带文件，则需要True启用)。默认：False。
 --device_id: 官方OAI3.5对话时请求头参数"Oai-Device-Id", 若不配置则从用户浏览器的请求头中获取。多人共享【建议配置】。
 --debug: 打印发送消息的请求体(前500字符)与收到的第一条响应。
+-i/--isolate: 隔离对话模式。
+--isolate_master: 此隔离码允许管理者查看所有隔离对话。
 ```
 
 
@@ -144,6 +147,8 @@
 30. `PANDORA_CLOUD`: Pandora Cloud模式(原参数，不知还可用否?)。
 31. `PANDORA_SERVERLESS`: vercel部署请启用，将`api.json`指向项目根目录的`data`文件夹(请不要将密钥直接填写到文件)
 32. `PANDORA_DEBUG`: 可设置`True`以打印发送消息的请求体(前500字符)与收到的第一条响应
+33. `PANDORA_ISOLATION`: 可设置`True`以启用隔离对话模式。
+34. `PANDORA_ISOLATION_MASTERCODE`: 此隔离码允许管理者查看所有隔离对话。
 
 > 使用Docker仅配置环境变量即可，无视上述`程序参数`。
 >
@@ -388,6 +393,17 @@
 
 
 ## 更新日志
+
+### 0505：
+
+- 支持隔离用户对话(Isolation Code)
+  - 使用`-i/--isolate`参数或设置环境变量`PANDORA_ISOLATION=True`以启用
+- Chat页面替换了更实用的Prompt(逻辑强化、文章复述与分析、翻译、论文润色)
+  - 逻辑强化：Take a deep breath and think step by step...  [来源](https://linux.do/t/topic/68360?u=manager)
+  - 文章复述与分析：利用5W2H分析法对文章进行深入的解读和总结。[来源](https://linux.do/t/topic/68360?u=manager)
+  - 翻译：英译中, 直译再意译。
+  - 论文润色：论文润色写作, 并要求重复率低于10%。[来源](https://linux.do/t/topic/29874/2?u=manager)
+- 模型选择列表的子菜单"Alpha Models"替换为"Other Models"
 
 ### 0412：
 

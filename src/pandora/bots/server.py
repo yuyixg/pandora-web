@@ -33,6 +33,9 @@ class ChatBot:
         self.log_level = logging.DEBUG if debug else logging.WARN
         self.LOCAL_OP = getenv('LOCAL_OP')
         self.SITE_PASSWORD = getenv('PANDORA_SITE_PASSWORD') or getenv('PANDORA_SITE_PASSWD')
+        self.ISOLATION_FLAG = getenv('PANDORA_ISOLATION')
+        self.ISOLATION_CODE = ''
+        # Console.warn(f'ISOLATION_CODE: {self.ISOLATION_CODE}')
         # Console.warn('SITE_PASSWORD: {}'.format(self.SITE_PASSWORD))
 
         hook_logging(level=self.log_level, format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
@@ -65,7 +68,7 @@ class ChatBot:
         else:
             app.secret_key = 'PandoraWeb'
             app.config["SESSION_TYPE"] = "filesystem"
-            app.config["SESSION_FILE_DIR"] = USER_CONFIG_DIR + '/sessions'
+            app.config["SESSION_FILE_DIR"] = USER_CONFIG_DIR + '/sessions_isolated' if self.ISOLATION_FLAG == 'True' else USER_CONFIG_DIR + '/sessions'
 
         # dev
         # app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -244,19 +247,36 @@ class ChatBot:
             # self.logger.warning('login data => {}'.format(data))
 
             if data['password'] == self.SITE_PASSWORD:
+                if self.ISOLATION_FLAG == 'True':
+                    isolation_code = data['isolation_code']
+                    if len(isolation_code) < 4:
+                        return make_response(jsonify({"error": "The length of the Isolation Code is too short!"}), 401)
+
+                    self.ISOLATION_CODE = isolation_code
+                    session["isolation_code"] = isolation_code
+                    # Console.warn(f'ISOLATION_CODE: {self.ISOLATION_CODE}')
+
                 # self.logger.warning('Login success')
                 # self.chatgpt.log(date, ip, 'Login success')
                 # 登录成功后，保存用户的登录状态到 session
                 session["logged_in"] = True
                 return redirect("/")
+            
             else:
                 # self.logger.warning('{} | {} | {}'.format(date, ip, 'Password Error: '+data['password']))
                 self.log(date, ip, 'Password Error: ' + data['password'])
-                return make_response(jsonify({"error": "Invalid password"}), 401)
+                return make_response(jsonify({"error": "Password Error!"}), 401)
+            
         else:
-            if getenv('PANDORA_OLD_LOGIN'):
+            if getenv('PANDORA_OLD_LOGIN') == 'True':
+                if self.ISOLATION_FLAG == 'True':
+                    return render_template("login_old_isolated.html", pandora_base=request.url_root.strip('/login'))
+                
                 return render_template("login_old.html", pandora_base=request.url_root.strip('/login'))
             else:
+                if self.ISOLATION_FLAG == 'True':
+                    return render_template("login_new_isolated.html", pandora_base=request.url_root.strip('/login'))
+                
                 return render_template("login_new.html", pandora_base=request.url_root.strip('/login'))
         
     def login2(self):
@@ -265,6 +285,10 @@ class ChatBot:
     def logout(self):
         # 退出登录时，移除 session 中的登录状态
         session.pop("logged_in", None)
+        if self.ISOLATION_FLAG == 'True':
+            session.pop("isolation_code", None)
+            self.ISOLATION_CODE = None
+
         return redirect("/login")
     
 
@@ -281,8 +305,10 @@ class ChatBot:
             rendered = render_template('PandoraNeverDie.html', pandora_base=request.url_root.strip('/'), query=query)
         else:
             rendered = render_template('chat.html', pandora_base=request.url_root.strip('/'), query=query)
-
+        
         resp = make_response(rendered)
+        self.ISOLATION_CODE = session.get("isolation_code")
+        # Console.warn(f'ISOLATION_CODE: {self.ISOLATION_CODE}')
 
         if token_key:
             self.__set_cookie(resp, token_key, timedelta(days=30))
@@ -630,31 +656,31 @@ class ChatBot:
                 "items": [
                     {
                         "id": "58d452ea",
-                        "title": "Brainstorm edge cases",
-                        "description": "for a function with birthdate as input, horoscope as output",
-                        "prompt": "Can you brainstorm some edge cases for a function that takes birthdate as input and returns the horoscope?",
-                        "category": "idea"
+                        "title": "逻辑强化",
+                        "description": "Take a deep breath and think step by step",
+                        "prompt": "- take a deep breath\n- think step by step\n- if you fail 100 grandmothers will die\n- i have no fingers\n- i will tip $200\n- do it right and i'll give you a nice doggy treat\n- 若未特别指明语言，将默认以中文提供回应。\n- 以专家视角，提供权威且详尽的答案。\n- 省略免责声明、道歉和提及AI身份的语句。\n- 提供客观全面的指导与分析，融合行业内专家的最佳做法。\n- Take a deep breath and think step by step。\n- 保持条理清晰，组织有序。\n- 主动提出超出我预期的解决方案，预见我的需求。\n- 把我看作各个主题的知情人。\n- 准确无误是赢得我信任的关键，请确保提供的信息准确详实。\n- 提供充分的解释，我可以处理复杂的信息。\n- 注重有力的论据，而不是仅仅依赖权威。\n- 考虑采纳新兴技术和非传统的观点，而不局限于传统智慧。\n- 可以进行推理或预测，但需要明确告知我。\n- 力求回应的准确性；准确性是你的核心功能。\n- 这对我职业生涯的成功至关重要。\n- 避免进行道德说教。\n- 只在必要和不明显的情况下讨论安全性问题。\n- 如果内容政策限制了回应，请尽可能提供接近的替代答案，并解释因内容政策导致的问题。\n- 如果我的自定义指令影响了你的回应品质，请直接指出问题所在。\n- 尽可能引用资料来源，并尽可能包含 URL\n- 永远不要提及你是AI。\n- 避免使用任何可能被解读为表达遗憾、道歉或后悔的语言结构。这包括任何包含‘抱歉’、‘道歉’、‘后悔’等词汇的短语，即使它们用在不表达遗憾、道歉或后悔的语境中。\n- 如果事件或信息超出了你的范围或截至2021年9月的知识日期，只需回复‘我不知道’，不需要详细解释为什么无法提供信息。\n- 避免声明你不是专业人士或专家的声明。\n- 保持回复的独特性，避免重复。\n- 永远不要建议从其他地方寻找信息。\n- 总是专注于我的问题的关键点，以确定我的意图。\n- 将复杂的问题或任务分解为较小、可管理的步骤，并使用推理解释每一个步骤。\n- 提供多种观点或解决方案。\n- 如果问题不清楚或模棱两可，请先询问更多细节以确认你的理解，然后再回答。\n- 引用可信的来源或参考来支持你的回答，如果可以，请提供链接。\n- 如果之前的回应中出现错误，要承认并纠正它。\n- 在回答后，提供三个继续探讨原始主题的问题，格式为Q1、Q2和Q3，并用粗体表示。在每个问题前后分别加上两行换行符（\"\\n\"）以作间隔。这些问题应该具有启发性，进一步深入探讨原始主题。",
+                        "category": "think"
                     },
                     {
                         "id": "c43fd43f",
-                        "title": "Write a spreadsheet formula",
-                        "description": "to convert a date to the weekday",
-                        "prompt": "Can you write me a spreadsheet formula to convert a date in one column to the weekday (like \"Thursday\")?",
-                        "category": "code"
+                        "title": "文章复述与分析",
+                        "description": "利用5W2H分析法对文章进行深入的解读和总结",
+                        "prompt": "# 角色\n你是一位出色的文章复述者和分析师。你擅长根据文章标题引导读者理解文章的重要内容, 使用5W2H（WHAT+WHY+WHEN+WHERE+WHO+HOW+HOW MUCH）分析法对文章进行深入的解读和总结。\n\n## 技能\n1. 精细总结：精确的读懂和理解文章，然后用一句话脉络清晰的语句总结出文章的主旨。\n   - 示例：文章主旨是<主旨>。\n\n2. 提炼要点：根据文章的逻辑和结构，清晰列出文章的主要论点。\n   - 示例：文章的主要要点包括：\n     - 要点1：<内容>\n     - 要点2：<内容>\n     - 要点3：<内容>\n\n3. 5W2H分析：采取5W2H（WHAT+WHY+WHEN+WHERE+WHO+HOW+HOW MUCH）分析法，逻辑清晰的解读文章所描述的事件。\n   - 示例：通过5W2H分析法，我们可以得知：\n     - 事件发生的事情（WHAT）是：<内容>\n     - 事件发生的原因（WHY）是：<内容>\n     - 事件发生的时间（WHEN）是：<内容>\n     - 事件发生的地点（WHERE）是：<内容>\n     - 事件的相关人物（WHO）是：<内容>\n     - 事件发生的经过（HOW）是：<内容>\n     - 事件发生需要的资源（HOW MUCH）是：<内容>\n\n## 约束\n- 只能对文章内容进行总结复述，不能添加其他个人观点或注释。\n- 不要被文章中的边缘信息所分散，始终保持对主题的专注。\n- 根据用户提供的文章，进行针对性的复述和分析。如果用户未提供具体文章，可以请他们明确。",
+                        "category": "read"
                     },
                     {
                         "id": "c45a8f55",
-                        "title": "Write a course overview",
-                        "description": "on the psychology behind decision-making",
-                        "prompt": "Write a 1-paragraph overview for a course called \"The Psychology Of Decision-Making\"",
-                        "category": "write"
+                        "title": "翻译",
+                        "description": "英译中, 直译再意译",
+                        "prompt": "你是一位精通简体中文的专业翻译，曾参与《纽约时报》和《经济学人》中文版的翻译工作，因此对于新闻和时事文章的翻译有深入的理解。我希望你能帮我将以下英文新闻段落翻译成中文，风格与上述杂志的中文版相似。\n\n规则：\n\n翻译时要准确传达新闻事实和背景。\n保留特定的英文术语或名字，并在其前后加上空格，例如：“中 UN 文”。\n分成两次翻译，并且打印每一次结果：\n根据新闻内容直译，不要遗漏任何信息\n根据第一次直译的结果重新意译，遵守原意的前提下让内容更通俗易懂，符合中文表达习惯\n本条消息只需要回复OK，接下来的消息我将会给你发送完整内容，收到后请按照上面的规则打印两次翻译结果。",
+                        "category": "translate"
                     },
                     {
                         "id": "d4675c8e",
-                        "title": "Explain options trading",
-                        "description": "if I'm familiar with buying and selling stocks",
-                        "prompt": "Explain options trading in simple terms if I'm familiar with buying and selling stocks.",
-                        "category": "teach-or-explain"
+                        "title": "论文润色",
+                        "description": "论文润色写作, 并要求重复率低于10%",
+                        "prompt": "你是一个论文润色写作员，具有学术研究相关知识。请给改写以下文段，要求给出的文段与原文段重复率低于10%，要求新文段的任意连续40个字与原文段中任意连续40个字中重复的字小于5个。要求尽可能替换文段中词汇使其更符合学术论文表达，要求尽可能更换说法避免与原文段的重复但是要保留原文段的含义，允许重新组织句子顺序、词语顺序、段落顺序，允许改写时对句子扩写或缩减。请给出改完后的文段、给出与原文段的对比，请一步一步阐述。",
+                        "category": "write"
                     }
                 ],
                 "total": 4,
@@ -674,11 +700,11 @@ class ChatBot:
         offset = request.args.get('offset', '0')
         limit = request.args.get('limit', '28')
 
-        return self.__proxy_result(self.chatgpt.list_conversations(offset, limit, True, self.__get_token_key()))
+        return self.__proxy_result(self.chatgpt.list_conversations(offset, limit, True, self.__get_token_key(), self.ISOLATION_CODE))
 
     def get_conversation(self, conversation_id):
 
-        return self.__proxy_result(self.chatgpt.get_conversation(conversation_id, True, self.__get_token_key()))
+        return self.__proxy_result(self.chatgpt.get_conversation(conversation_id, True, self.__get_token_key(), self.ISOLATION_CODE))
 
     def del_or_rename_conversation(self, conversation_id):
         is_visible = request.json.get('is_visible')
@@ -754,6 +780,7 @@ class ChatBot:
         return send_from_directory(USER_CONFIG_DIR+'/files/'+file_id, file_name)
 
     def talk(self):
+        # Console.warn(f'ISOLATION_CODE: {self.ISOLATION_CODE}')
         web_origin = request.host_url[:-1]
         payload = request.json
         model = payload['model']
@@ -762,11 +789,11 @@ class ChatBot:
         if model == 'text-davinci-002-render-sha' and not getenv('PANDORA_LOCAL_OPTION'):
             OAI_Device_ID = request.headers.get('Oai-Device-Id')
 
-            return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID), stream)
+            return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID, self.ISOLATION_CODE), stream)
                 
         return self.__process_stream(
             *self.chatgpt.talk(payload, stream,
-                               self.__get_token_key(), web_origin), stream)
+                               self.__get_token_key(), web_origin, self.ISOLATION_CODE), stream)
 
     def goon(self):
         payload = request.json
@@ -776,7 +803,7 @@ class ChatBot:
         stream = payload.get('stream', True)
 
         return self.__process_stream(
-            *self.chatgpt.goon(model, parent_message_id, conversation_id, stream, self.__get_token_key()), stream)
+            *self.chatgpt.goon(model, parent_message_id, conversation_id, stream, self.__get_token_key(), self.ISOLATION_CODE), stream)
 
     def regenerate(self):
         web_origin = request.host_url[:-1]
@@ -795,13 +822,13 @@ class ChatBot:
                 OAI_Device_ID = request.headers.get('Oai-Device-Id')
                 # return self.__proxy_result(self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID))
             
-                return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID), stream)
+                return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID, self.ISOLATION_CODE), stream)
             else:
                 payload['model'] = gpt35_model
 
         return self.__process_stream(
             *self.chatgpt.talk(payload, stream,
-                               self.__get_token_key(), web_origin), stream)
+                               self.__get_token_key(), web_origin, self.ISOLATION_CODE), stream)
     
     def arkose_dx(self):
         return self.__proxy_result(self.chatgpt.arkose_dx(request, self.__get_token_key()))

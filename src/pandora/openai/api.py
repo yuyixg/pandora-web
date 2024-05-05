@@ -37,7 +37,7 @@ if os.path.exists(USER_CONFIG_DIR + '/api.json') and not getenv('PANDORA_OAI_ONL
 
 
 class API:
-    def __init__(self, proxy, ca_bundle, req_timeout=60, LOCAL_OP=False, OAI_ONLY=False, PANDORA_DEBUG=False):
+    def __init__(self, proxy, ca_bundle, req_timeout=60, LOCAL_OP=False, OAI_ONLY=False, PANDORA_DEBUG=False, ISOLATION_FLAG=False):
         # self.proxy = proxy    # httpx
         self.proxy = {
                         'http': proxy,
@@ -49,6 +49,7 @@ class API:
         self.OAI_ONLY = OAI_ONLY
         self.req_timeout = req_timeout
         self.PANDORA_DEBUG = PANDORA_DEBUG
+        self.ISOLATION_FLAG = ISOLATION_FLAG
 
         # curl_cffi
         if 'nt' == os.name:
@@ -91,7 +92,7 @@ class API:
         yield b'data: [DONE]\n\n'
 
 
-    async def __process_sse(self, resp, conversation_id=None, message_id=None, model=None, action=None, prompt=None):
+    async def __process_sse(self, resp, conversation_id=None, message_id=None, model=None, action=None, prompt=None, isolation_code=None):
         if resp.status_code != 200:
             Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + f'Model: {model} | Status_Code: {str(resp.status_code)}')
             yield await self.__process_sse_except(resp)
@@ -246,6 +247,11 @@ class API:
         if os.path.exists(USER_CONFIG_DIR + '/api.json') and not getenv('PANDORA_OAI_ONLY'):
             if API_DATA.get(model):
                 LocalConversation.save_conversation(conversation_id, msg_id, resp_content, 'assistant', datetime.now(tzutc()).isoformat(), model, action)
+        
+        if isolation_code and self.ISOLATION_FLAG == 'True':
+            # 隔离OAI对话
+            if getenv('PANDORA_OAI_ONLY') or (os.path.exists(USER_CONFIG_DIR + '/api.json') and API_DATA.get(model) is None):
+                LocalConversation.create_conversation(conversation_id, prompt, datetime.now(tzutc()).isoformat(), isolation_code)
   
     async def __process_sse_origin(self, resp):
         yield resp.status_code
@@ -304,7 +310,7 @@ class API:
 
     #             queue.put(None)
 
-    async def _do_request_sse(self, url, headers, data, queue, event, conversation_id=None, message_id=None, model=None, action=None, prompt=None):
+    async def _do_request_sse(self, url, headers, data, queue, event, conversation_id=None, message_id=None, model=None, action=None, prompt=None, isolation_code=None):
         proxy = None
         if os.path.exists(USER_CONFIG_DIR + '/api.json') and not getenv('PANDORA_OAI_ONLY'):
             if API_DATA.get(model):
@@ -317,7 +323,7 @@ class API:
         try:
             async with requests.AsyncSession(verify=self.ca_bundle, proxies=proxy if proxy else self.proxy, impersonate='chrome110') as client:
                 async with client.stream('POST', url, json=data, headers=headers, timeout=60 if not self.req_timeout else self.req_timeout) as resp:
-                    async for line in self.__process_sse(resp, conversation_id, message_id, model, action, prompt):
+                    async for line in self.__process_sse(resp, conversation_id, message_id, model, action, prompt, isolation_code):
                         queue.put(line)
 
                         if event.is_set():
@@ -334,13 +340,13 @@ class API:
 
             return self.error_fallback('Internal Error!') 
 
-    def _request_sse(self, url, headers, data, conversation_id=None, message_id=None, model=None, action=None, prompt=None):
+    def _request_sse(self, url, headers, data, conversation_id=None, message_id=None, model=None, action=None, prompt=None, isolation_code=None):
         if self.PANDORA_DEBUG == 'True':
             data_str = json.dumps(data, ensure_ascii=False)[:500]
             Console.debug(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + 'data: {}'.format(data_str)) # dev
 
         queue, e = block_queue.Queue(), threading.Event()
-        t = threading.Thread(target=asyncio.run, args=(self._do_request_sse(url, headers, data, queue, e, conversation_id, message_id, model, action, prompt),))
+        t = threading.Thread(target=asyncio.run, args=(self._do_request_sse(url, headers, data, queue, e, conversation_id, message_id, model, action, prompt, isolation_code),))
         t.start()
 
         return queue.get(), queue.get(), self.__generate_wrap(queue, t, e)
@@ -348,7 +354,7 @@ class API:
 
 
 class ChatGPT(API):
-    def __init__(self, access_tokens: dict, proxy=None, req_timeout=60, LOCAL_OP=False, OAI_ONLY=False, PANDORA_DEBUG=False):
+    def __init__(self, access_tokens: dict, proxy=None, req_timeout=60, LOCAL_OP=False, OAI_ONLY=False, PANDORA_DEBUG=False, ISOLATION_FLAG=False):
         self.access_tokens = access_tokens
         self.access_token_key_list = list(access_tokens)
         self.default_token_key = self.access_token_key_list[0]
@@ -373,6 +379,9 @@ class ChatGPT(API):
         PANDORA_TYPE_BLACKLIST = getenv('PANDORA_TYPE_BLACKLIST')
         self.UPLOAD_TYPE_WHITELIST = []
         self.UPLOAD_TYPE_BLACKLIST = []
+        
+        LocalConversation.initialize_database()
+
         if PANDORA_TYPE_WHITELIST:
             self.UPLOAD_TYPE_WHITELIST = PANDORA_TYPE_WHITELIST.split(',')
             # Console.warn(f"PANDORA_TYPE_WHITELIST: {self.UPLOAD_TYPE_WHITELIST}")
@@ -385,7 +394,7 @@ class ChatGPT(API):
         hook_logging(level=self.log_level, format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
         self.logger = logging.getLogger('waitress')
 
-        super().__init__(proxy, self.req_kwargs['verify'], req_timeout, LOCAL_OP, OAI_ONLY, PANDORA_DEBUG)
+        super().__init__(proxy, self.req_kwargs['verify'], req_timeout, LOCAL_OP, OAI_ONLY, PANDORA_DEBUG, ISOLATION_FLAG)
 
         if self.req_timeout:
             self.req_kwargs['timeout'] = self.req_timeout
@@ -499,7 +508,7 @@ class ChatGPT(API):
             except Exception as e:
                 error_detail = traceback.format_exc()
                 Console.debug(error_detail)
-                Console.warn('list_conversations FAILED: {}'.format(e))
+                Console.warn('list_models FAILED: {}'.format(e))
                 return
 
         result = {
@@ -615,9 +624,9 @@ class ChatGPT(API):
 
         return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
 
-    def list_conversations(self, offset, limit, raw=False, token=None):
+    def list_conversations(self, offset, limit, raw=False, token=None, isolation_code=None):
         ERROR_FLAG = False
-        if not self.LOCAL_OP:
+        if not self.LOCAL_OP and self.ISOLATION_FLAG != 'True':
             # url = '{}/api/conversations?offset={}&limit={}'.format(self.__get_api_prefix(), offset, limit)
             url = '{}/backend-api/conversations?offset={}&limit={}&order=updated'.format(self.__get_api_prefix(), offset, limit)
             try:
@@ -637,7 +646,7 @@ class ChatGPT(API):
                 if self.OAI_ONLY:
                     return
 
-        if self.LOCAL_OP or ERROR_FLAG == True or resp.status_code != 200:
+        if self.LOCAL_OP or ERROR_FLAG == True or resp.status_code != 200 or self.ISOLATION_FLAG == 'True':
             result = {
                 'has_missing_conversations': False,
                 'items': [],
@@ -646,7 +655,7 @@ class ChatGPT(API):
                 'total': 0,
             }
 
-        convs_data = LocalConversation.list_conversations(offset, limit)
+        convs_data = LocalConversation.list_conversations(offset, limit, isolation_code)
         # Console.debug_b('Local conversation list: {}'.format(convs_data))
         if convs_data:
             convs_data_total = convs_data['total']
@@ -740,12 +749,16 @@ class ChatGPT(API):
 
         return resp
 
-    def get_conversation(self, conversation_id, raw=False, token=None):
+    def get_conversation(self, conversation_id, raw=False, token=None, isolation_code=None):
         if os.path.exists(API_CONFIG_FILE) or not self.OAI_ONLY:
-            conversation_info = LocalConversation.check_conversation_exist(conversation_id)
-
-            if conversation_info:
-                return LocalConversation.get_conversation(conversation_id)
+            # conversation_info = LocalConversation.check_conversation_exist(conversation_id, isolation_code)
+            # if conversation_info:
+            #     return LocalConversation.get_conversation(conversation_id, isolation_code)
+            
+            # 不检查对话是否存在, 直接请求对话详情. 2024-05-05
+            conversation_detail = LocalConversation.get_conversation(conversation_id, isolation_code)
+            if conversation_detail:
+                return conversation_detail
 
         # url = '{}/api/conversation/{}'.format(self.__get_api_prefix(), conversation_id)
         url = '{}/backend-api/conversation/{}'.format(self.__get_api_prefix(), conversation_id)
@@ -782,9 +795,12 @@ class ChatGPT(API):
 
     def del_conversation(self, conversation_id, raw=False, token=None):
         if os.path.exists(API_CONFIG_FILE):
-            conversation_info = LocalConversation.check_conversation_exist(conversation_id)
-            if conversation_info:
-                return LocalConversation.del_conversation(conversation_id)
+            # conversation_info = LocalConversation.check_conversation_exist(conversation_id)
+            # if conversation_info:
+            #     return LocalConversation.del_conversation(conversation_id)
+
+            # 不检查对话是否存在, 直接请求删除对话. 2024-05-05
+            return LocalConversation.del_conversation(conversation_id)
             
         data = {
             'is_visible': False,
@@ -820,10 +836,12 @@ class ChatGPT(API):
 
     def set_conversation_title(self, conversation_id, title, raw=False, token=None):
         if os.path.exists(API_CONFIG_FILE):
-            conversation_info = LocalConversation.check_conversation_exist(conversation_id)
-
-            if conversation_info:
-                return LocalConversation.rename_conversation(title, conversation_id)
+            # conversation_info = LocalConversation.check_conversation_exist(conversation_id)
+            # if conversation_info:
+            #     return LocalConversation.rename_conversation(title, conversation_id)
+            
+            # 不检查对话是否存在, 直接请求对话. 2024-05-05
+            return LocalConversation.rename_conversation(title, conversation_id)
             
         data = {
             'title': title,
@@ -936,7 +954,7 @@ class ChatGPT(API):
 
 
     # def talk(self, prompt, model, message_id, parent_message_id, conversation_id=None, stream=True, token=None):
-    def talk(self, payload, stream=True, token=None, web_origin=None):
+    def talk(self, payload, stream=True, token=None, web_origin=None, isolation_code=None):
         if web_origin:
             self.web_origin = web_origin
 
@@ -980,7 +998,7 @@ class ChatGPT(API):
         if conversation_id:
             data['conversation_id'] = conversation_id
 
-        return self.__request_conversation(data, token)
+        return self.__request_conversation(data, token, isolation_code)
     
     def __chat_requirements(self, token=None, OAI_Device_ID=None):
         headers=self.__get_headers(token, OAI_Device_ID)
@@ -991,7 +1009,7 @@ class ChatGPT(API):
 
         return resp.json()['token']
 
-    def chat_ws(self, payload, token=None, OAI_Device_ID=None):
+    def chat_ws(self, payload, token=None, OAI_Device_ID=None, isolation_code=None):
         if self.LOCAL_OP:
             return API.error_fallback('OAI not supported!')
 
@@ -1052,7 +1070,7 @@ class ChatGPT(API):
             if conversation_id:
                 data['conversation_id'] = conversation_id
 
-            return self._request_sse(url, headers, data, conversation_id, message_id, model, action, content)
+            return self._request_sse(url, headers, data, conversation_id, message_id, model, action, content, isolation_code)
         
         except Exception as e:
             error_detail = traceback.format_exc()
@@ -1157,7 +1175,7 @@ class ChatGPT(API):
 
         return resp
 
-    def goon(self, model, parent_message_id, conversation_id, stream=True, token=None):
+    def goon(self, model, parent_message_id, conversation_id, stream=True, token=None, isolation_code=None):
         data = {
             'action': 'continue',
             'conversation_id': conversation_id,
@@ -1165,9 +1183,9 @@ class ChatGPT(API):
             'parent_message_id': parent_message_id,
         }
 
-        return self.__request_conversation(data, token)
+        return self.__request_conversation(data, token, isolation_code)
 
-    def regenerate_reply(self, prompt, model, conversation_id, message_id, parent_message_id, stream=True, token=None):
+    def regenerate_reply(self, prompt, model, conversation_id, message_id, parent_message_id, stream=True, token=None, isolation_code=None):
         data = {
             'action': 'variant',
             'messages': [
@@ -1188,7 +1206,7 @@ class ChatGPT(API):
             'parent_message_id': parent_message_id,
         }
 
-        return self.__request_conversation(data, token)
+        return self.__request_conversation(data, token, isolation_code)
     
 
     def create_share(self, request, token=None):
@@ -1215,7 +1233,7 @@ class ChatGPT(API):
                         "has_been_auto_moderated": False
                     }
             }
-        title = self.cursor.execute("SELECT title FROM list_conversations WHERE id=?", (conversation_id,)).fetchone()
+        title = LocalConversation.check_conversation_exist(conversation_id)
         # Console.debug_b('create_share: {}'.format(title))
         if title:
             is_anonymous = payload['is_anonymous']
@@ -1325,7 +1343,7 @@ class ChatGPT(API):
         else:
             return None
 
-    def __request_conversation(self, data, token=None):
+    def __request_conversation(self, data, token=None, isolation_code=None):
         # if not getenv('PANDORA_LOCAL_OPTION'):
         #     # url = '{}/api/conversation'.format(self.__get_api_prefix())
         #     url = '{}/backend-api/conversation'.format(self.__get_api_prefix())
@@ -1458,7 +1476,7 @@ class ChatGPT(API):
                 if not data.get('conversation_id'):
                     # Console.debug_b('No conversation_id, create and save user conversation.')
                     conversation_id = str(uuid.uuid4())
-                    LocalConversation.create_conversation(conversation_id, content, datetime.now(tzutc()).isoformat())
+                    LocalConversation.create_conversation(conversation_id, content, datetime.now(tzutc()).isoformat(), isolation_code)
                 
             LocalConversation.save_conversation(conversation_id, message_id, content, 'user', datetime.now(tzutc()).isoformat(), model, action)
 
