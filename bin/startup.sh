@@ -61,16 +61,16 @@ if [ -n "${PANDORA_HISTORY_COUNT}" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --history_count ${PANDORA_HISTORY_COUNT}"
 fi
 
-if [ -n "${PANDORA_BEST_HISTORY}" ]; then
+if [ "${PANDORA_BEST_HISTORY}" = "True" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --best_history"
 fi
 
 # Other options
-if [ -n "${PANDORA_TRUE_DELETE}" ]; then
+if [ "${PANDORA_TRUE_DELETE}" = "True" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --true_del"
 fi
 
-if [ -n "${PANDORA_LOCAL_OPTION}" ]; then
+if [ "${PANDORA_LOCAL_OPTION}" = "True" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} -l"
 fi
 
@@ -78,15 +78,15 @@ if [ -n "${PANDORA_TIMEOUT}" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --timeout ${PANDORA_TIMEOUT}"
 fi
 
-if [ -n "${PANDORA_OAI_ONLY}" ]; then
+if [ "${PANDORA_OAI_ONLY}" = "True" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --oai_only"
 fi
 
-if [ -n "${PANDORA_OLD_LOGIN}" ]; then
+if [ "${PANDORA_OLD_LOGIN}" = "True" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --old_login"
 fi
 
-if [ -n "${PANDORA_OLD_CHAT}" ]; then
+if [ "${PANDORA_OLD_CHAT}" = "True" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --old_chat"
 fi
 
@@ -124,6 +124,10 @@ fi
 
 if [ -n "${PANDORA_THREADS}" ]; then
   PANDORA_ARGS="${PANDORA_ARGS} --threads ${PANDORA_THREADS}"
+fi
+
+if [ "${PANDORA_DEBUG}" = "True" ]; then
+  PANDORA_ARGS="${PANDORA_ARGS} --debug"
 fi
 
 if [ "${PANDORA_ISOLATION}" = "True" ]; then

@@ -28,10 +28,14 @@ import time
 import urllib.parse
 from urllib.parse import quote
 import base64
+import hashlib
+from binascii import hexlify
 import traceback
+import random
+from dateutil.tz import tzlocal
 from bs4 import BeautifulSoup   # func get_origin_share_data
 
-if os.path.exists(USER_CONFIG_DIR + '/api.json') and not getenv('PANDORA_OAI_ONLY'):
+if getenv('PANDORA_ISOLATION') == 'True' or (os.path.exists(USER_CONFIG_DIR + '/api.json') and getenv('PANDORA_OAI_ONLY') != 'True'):
     from ..api.module import LocalConversation
     from ..api.module import API_CONFIG_FILE, API_DATA
 
@@ -119,6 +123,7 @@ class API:
 
         resp_content = ''
         yield_msg = ''
+        official_title = ''
         create_time = None
         msg_id = None
         original_conv_id = conversation_id
@@ -138,7 +143,7 @@ class API:
                 # Console.warn(utf8_line)
                 
                 # dev
-                if not SHOW_RESP_MSG and self.PANDORA_DEBUG == 'True':
+                if not SHOW_RESP_MSG and self.PANDORA_DEBUG:
                     Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + '{}'.format(utf8_line))
                     SHOW_RESP_MSG = True
 
@@ -165,6 +170,16 @@ class API:
                     # 适配3.5
                     if conversation_id is None and json_data.get('conversation_id'):
                         conversation_id = json_data['conversation_id']
+
+                    # Official Title
+                    if json_data.get('title'):
+                        official_title = json_data.get('title')
+
+                        # 创建隔离OAI对话
+                        if not original_conv_id and self.ISOLATION_FLAG and isolation_code:
+                            if self.OAI_ONLY or (API_DATA and API_DATA.get(model) is None):
+                                # Console.warn('OAI隔离模式, 创建对话')
+                                LocalConversation.create_conversation(conversation_id, official_title, datetime.now(tzutc()).isoformat(), isolation_code)
 
                     # 0412: 为避免一些OAI接口返回重复id, 因此改为自主生成
                     # if json_data.get('id'):
@@ -227,6 +242,7 @@ class API:
                     if '      "url": ' in utf8_line[0:14]:
                         resp_content += '![img]({})'.format(utf8_line[14:-1])
 
+                
                 if resp_content:
                     for char in resp_content[index:]:
                         yield_msg += char
@@ -244,14 +260,17 @@ class API:
 
         # Console.debug_b("End of assistant's answer, save assistant conversation.")
 
-        if os.path.exists(USER_CONFIG_DIR + '/api.json') and not getenv('PANDORA_OAI_ONLY'):
+        if os.path.exists(USER_CONFIG_DIR + '/api.json') and not self.OAI_ONLY:
             if API_DATA.get(model):
                 LocalConversation.save_conversation(conversation_id, msg_id, resp_content, 'assistant', datetime.now(tzutc()).isoformat(), model, action)
         
-        if isolation_code and self.ISOLATION_FLAG == 'True':
-            # 隔离OAI对话
-            if getenv('PANDORA_OAI_ONLY') or (os.path.exists(USER_CONFIG_DIR + '/api.json') and API_DATA.get(model) is None):
-                LocalConversation.create_conversation(conversation_id, prompt, datetime.now(tzutc()).isoformat(), isolation_code)
+        # 创建隔离OAI对话(当无title生成时的兜底策略)
+        if not original_conv_id and self.ISOLATION_FLAG and isolation_code:
+            if self.OAI_ONLY or (API_DATA and API_DATA.get(model) is None):
+                if not official_title:
+                    official_title = prompt
+                    # Console.warn('OAI隔离模式, 创建对话')
+                    LocalConversation.create_conversation(conversation_id, prompt, datetime.now(tzutc()).isoformat(), isolation_code)
   
     async def __process_sse_origin(self, resp):
         yield resp.status_code
@@ -341,7 +360,7 @@ class API:
             return self.error_fallback('Internal Error!') 
 
     def _request_sse(self, url, headers, data, conversation_id=None, message_id=None, model=None, action=None, prompt=None, isolation_code=None):
-        if self.PANDORA_DEBUG == 'True':
+        if self.PANDORA_DEBUG:
             data_str = json.dumps(data, ensure_ascii=False)[:500]
             Console.debug(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + 'data: {}'.format(data_str)) # dev
 
@@ -380,7 +399,11 @@ class ChatGPT(API):
         self.UPLOAD_TYPE_WHITELIST = []
         self.UPLOAD_TYPE_BLACKLIST = []
         
-        LocalConversation.initialize_database()
+        # if getenv('PANDORA_OAI_ONLY') != 'True' or self.ISOLATION_FLAG == 'True':
+        #     LocalConversation.initialize_database()
+
+        if ISOLATION_FLAG or not OAI_ONLY:
+            LocalConversation.initialize_database()
 
         if PANDORA_TYPE_WHITELIST:
             self.UPLOAD_TYPE_WHITELIST = PANDORA_TYPE_WHITELIST.split(',')
@@ -421,7 +444,7 @@ class ChatGPT(API):
                     "Content-Type":"application/json",
                     "Oai-Device-Id":str(OAI_Device_ID),
                     "Oai-Language":"en-US",
-                    "Origin":"https://chat.openai.com",
+                    # "Origin":"https://chatgpt.com",
                     "Pragma":"no-cache",
                     "Sec-Ch-Ua":'"Google Chrome";v="110", "Not:A-Brand";v="8", "Chromium";v="110"',
                     "Sec-Ch-Ua-Mobile":"?0",
@@ -625,8 +648,8 @@ class ChatGPT(API):
         return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
 
     def list_conversations(self, offset, limit, raw=False, token=None, isolation_code=None):
-        ERROR_FLAG = False
-        if not self.LOCAL_OP and self.ISOLATION_FLAG != 'True':
+        OAI_ERROR_FLAG = False
+        if not self.LOCAL_OP and not self.ISOLATION_FLAG:
             # url = '{}/api/conversations?offset={}&limit={}'.format(self.__get_api_prefix(), offset, limit)
             url = '{}/backend-api/conversations?offset={}&limit={}&order=updated'.format(self.__get_api_prefix(), offset, limit)
             try:
@@ -637,16 +660,21 @@ class ChatGPT(API):
 
                     if self.OAI_ONLY:
                         return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+                else:
+                    Console.warn(f'list_conversations: resp.status_code={str(resp.status_code)}')
+                    Console.warn(f'list_conversations: resp.text={str(resp.text)}')
+                    OAI_ERROR_FLAG = True
+
             except Exception as e:
                 error_detail = traceback.format_exc()
                 Console.debug(error_detail)
                 Console.warn('list_conversations FAILED: {}'.format(e))
-                ERROR_FLAG = True
+                OAI_ERROR_FLAG = True
 
                 if self.OAI_ONLY:
                     return
 
-        if self.LOCAL_OP or ERROR_FLAG == True or resp.status_code != 200 or self.ISOLATION_FLAG == 'True':
+        if self.LOCAL_OP or self.ISOLATION_FLAG or OAI_ERROR_FLAG == True:
             result = {
                 'has_missing_conversations': False,
                 'items': [],
@@ -687,7 +715,7 @@ class ChatGPT(API):
                 # 对话列表按更新时间'update_time'倒序重新排序
                 result['items'] = sorted(result['items'], key=lambda item: item['update_time'], reverse=True)
 
-                if not self.LOCAL_OP and ERROR_FLAG == False and resp.status_code == 200:
+                if not self.LOCAL_OP and not self.ISOLATION_FLAG and OAI_ERROR_FLAG == False:
                     result['total'] = convs_data_total if convs_data_total > result['total'] else result['total']
 
                     return self.fake_resp(resp, json.dumps(result, ensure_ascii=False))
@@ -725,8 +753,8 @@ class ChatGPT(API):
             data = request.data
             headers = self.__get_headers(token)
 
-            if url.startswith('https://chat.openai.com'):
-                headers['Origin'] = 'https://chat.openai.com'
+            if url.startswith('https://chat.openai.com') or url.startswith('https://chatgpt.com'):
+                headers['Origin'] = 'https://chatgpt.com'
             
             resp = self.session.post(url=url, headers=self.__get_headers(token), data=data, **self.req_kwargs)
 
@@ -750,7 +778,7 @@ class ChatGPT(API):
         return resp
 
     def get_conversation(self, conversation_id, raw=False, token=None, isolation_code=None):
-        if os.path.exists(API_CONFIG_FILE) or not self.OAI_ONLY:
+        if self.ISOLATION_FLAG or os.path.exists(API_CONFIG_FILE) or not self.OAI_ONLY:
             # conversation_info = LocalConversation.check_conversation_exist(conversation_id, isolation_code)
             # if conversation_info:
             #     return LocalConversation.get_conversation(conversation_id, isolation_code)
@@ -1000,12 +1028,75 @@ class ChatGPT(API):
 
         return self.__request_conversation(data, token, isolation_code)
     
-    def __chat_requirements(self, token=None, OAI_Device_ID=None):
+    def __proof_token(self, seed, diff):
+        fake_config = self.__chat_requirements(GET_FAKE_CONFIG=True)
+        diff_len = len(diff) // 2
+        hasher = hashlib.sha3_512()
+        
+        for i in range(100000):
+            fake_config[3] = i
+            config_encode = json.dumps(fake_config).encode('utf-8')
+            base = base64.standard_b64encode(config_encode).decode('utf-8')
+            hasher.update((seed + base).encode('utf-8'))
+            hash = hasher.digest()
+            hasher = hashlib.sha3_512()  # 重置hasher
+            if hexlify(hash[:diff_len]).decode('utf-8') <= diff:
+                return "gAAAAAB" + base
+            
+        return ("gAAAAABwQ8Lk5FbGpA2NcR9dShT6gYjU7VxZ4D" + 
+                base64.standard_b64encode(json.dumps(seed).encode('utf-8')).decode('utf-8'))
+    
+    def __chat_requirements(self, token=None, OAI_Device_ID=None, GET_FAKE_CONFIG=False):
         headers=self.__get_headers(token, OAI_Device_ID)
         headers['Dnt'] = '1'
-        
-        url = 'https://chat.openai.com/backend-api/sentinel/chat-requirements'
-        resp = self.session.post(url=url, headers=headers, json={}, **self.req_kwargs)
+        headers['Origin'] = 'https://chatgpt.com'
+
+        cores = [8, 12, 16, 24]
+        screens = [3000, 4000, 6000]
+        random.seed(int(time.time() * 1e9))
+        core = random.choice(cores)
+        screen = random.choice(screens)
+        now = datetime.now(tzlocal())
+        timeLayout = "%a %b %d %Y %H:%M:%S %Z"
+        parse_time = now.strftime(timeLayout)
+        fake_config = [
+            core + screen,
+            parse_time,
+            4294705152,
+            0,
+            self.user_agent,
+            "https://cdn.oaistatic.com/_next/static/2E3kyHMTDQPAokpbyfwns/_ssgManifest.js?dpl=ebab7301ae39fe916a5e1ce6d894b31921d5d573",
+            "dpl=ebab7301ae39fe916a5e1ce6d894b31921d5d573",
+            "zh-CN",
+            "zh-CN, zh"
+        ]
+
+        if GET_FAKE_CONFIG:
+            return fake_config
+
+        fake_config_encode = json.dumps(fake_config).encode()
+        fake_data_base64_string = base64.b64encode(fake_config_encode).decode()
+        fake_data = {'p': 'gAAAAAC' + fake_data_base64_string} 
+
+        url = 'https://chatgpt.com/backend-api/sentinel/chat-requirements'
+        resp = self.session.post(url=url, headers=headers, json=fake_data, **self.req_kwargs)
+
+        if resp.status_code == 200:
+            resp_data = resp.json()
+            fallback_data = {'Openai-Sentinel-Chat-Requirements-Token': resp_data['token']}
+
+            if resp_data.get('proofofwork'):
+                if resp_data['proofofwork']['required'] == True:
+                    seed = resp_data['proofofwork']['seed']
+                    diff = resp_data['proofofwork']['difficulty']
+                    proff_token = self.__proof_token(seed, diff)
+                    fallback_data['Openai-Sentinel-Proof-Token'] = proff_token
+                
+            return fallback_data
+
+        else:
+            Console.warn('chat_requirements FAILED: resp.status_code={}'.format(resp.status_code))
+            Console.warn('chat_requirements FAILED: {}'.format(resp.text))
 
         return resp.json()['token']
 
@@ -1015,11 +1106,15 @@ class ChatGPT(API):
 
         try:
             url = '{}/backend-api/conversation'.format(self.__get_api_prefix())
+            # url = 'https://chatgpt.com/backend-api/conversation'
             headers = self.__get_headers(token, OAI_Device_ID)
             headers['Dnt'] = '1'
 
-            if url.startswith('https://chat.openai.com'):
-                headers['Openai-Sentinel-Chat-Requirements-Token'] = self.__chat_requirements(token)
+            if url.startswith('https://chat.openai.com') or url.startswith('https://chatgpt.com'):
+                chat_requirements_data = self.__chat_requirements(token, OAI_Device_ID)
+                headers['Openai-Sentinel-Chat-Requirements-Token'] = chat_requirements_data['Openai-Sentinel-Chat-Requirements-Token']
+                if chat_requirements_data.get('Openai-Sentinel-Proof-Token'):
+                    headers['Openai-Sentinel-Proof-Token'] = chat_requirements_data['Openai-Sentinel-Proof-Token']
 
             # resp = self.session.post(url=url, headers=headers, json=payload, **self.req_kwargs)
 

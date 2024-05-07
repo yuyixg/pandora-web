@@ -177,7 +177,7 @@ class LocalConversation:
         #         )
         #     ''')
 
-        if ISOLATION_FLAG == 'True':
+        if ISOLATION_FLAG == 'True' and isolation_code:
             convs_database_cursor.execute("INSERT INTO list_conversations_isolated (id, title, create_time, update_time, isolation_code, visible) VALUES (?, ?, ?, ?, ?, ?)",
                 (id, title, str(time), str(time), isolation_code, 1)
             )
@@ -250,7 +250,8 @@ class LocalConversation:
         convs_database_cursor = convs_database.cursor()
         
         try:
-            if isolation_code:
+            if ISOLATION_FLAG == 'True' and isolation_code:
+                # Console.warn(f'isolation_code: {isolation_code}')
                 if isolation_code == ISOLATION_MASTER_CODE:
                     convs_total = convs_database_cursor.execute("SELECT COUNT(id) FROM list_conversations_isolated WHERE visible=1").fetchone()[0]
                 else:
@@ -262,7 +263,7 @@ class LocalConversation:
             Console.warn(str(e))
 
         try:
-            if isolation_code:
+            if ISOLATION_FLAG == 'True' and isolation_code:
                 if isolation_code == ISOLATION_MASTER_CODE:
                     convs_data = convs_database_cursor.execute("SELECT * FROM list_conversations_isolated WHERE visible=1 ORDER BY update_time DESC LIMIT ?, ?", (offset, limit)).fetchall()
                 else:
@@ -297,7 +298,7 @@ class LocalConversation:
         convs_database_cursor = convs_database.cursor()
 
         try:
-            # if isolation_code:
+            # if ISOLATION_FLAG == 'True' and isolation_code:
             #     conversation_info = convs_database_cursor.execute("SELECT id FROM list_conversations_isolated WHERE id=? AND isolation_code=? AND visible=1", (conversation_id, isolation_code)).fetchone()
             # else:
             #     conversation_info = convs_database_cursor.execute("SELECT id FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
@@ -317,7 +318,7 @@ class LocalConversation:
     def get_conversation(conversation_id, isolation_code=None, share=False):
         convs_database_cursor = convs_database.cursor()
 
-        # if isolation_code:
+        # if ISOLATION_FLAG == 'True' and isolation_code:
         #     list_conversation_info = convs_database_cursor.execute("SELECT * FROM list_conversations_isolated WHERE id=? AND isolation_code=? AND visible=1", (conversation_id, isolation_code)).fetchone()
         # else:
         #     list_conversation_info = convs_database_cursor.execute("SELECT * FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()

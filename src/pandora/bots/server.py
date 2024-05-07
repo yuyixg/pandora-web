@@ -34,9 +34,6 @@ class ChatBot:
         self.LOCAL_OP = getenv('LOCAL_OP')
         self.SITE_PASSWORD = getenv('PANDORA_SITE_PASSWORD') or getenv('PANDORA_SITE_PASSWD')
         self.ISOLATION_FLAG = getenv('PANDORA_ISOLATION')
-        self.ISOLATION_CODE = ''
-        # Console.warn(f'ISOLATION_CODE: {self.ISOLATION_CODE}')
-        # Console.warn('SITE_PASSWORD: {}'.format(self.SITE_PASSWORD))
 
         hook_logging(level=self.log_level, format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
         self.logger = logging.getLogger('waitress')
@@ -252,9 +249,8 @@ class ChatBot:
                     if len(isolation_code) < 4:
                         return make_response(jsonify({"error": "The length of the Isolation Code is too short!"}), 401)
 
-                    self.ISOLATION_CODE = isolation_code
                     session["isolation_code"] = isolation_code
-                    # Console.warn(f'ISOLATION_CODE: {self.ISOLATION_CODE}')
+                    # Console.warn(f'ISOLATION_CODE: {str(session.get("isolation_code"))}')
 
                 # self.logger.warning('Login success')
                 # self.chatgpt.log(date, ip, 'Login success')
@@ -287,7 +283,6 @@ class ChatBot:
         session.pop("logged_in", None)
         if self.ISOLATION_FLAG == 'True':
             session.pop("isolation_code", None)
-            self.ISOLATION_CODE = None
 
         return redirect("/login")
     
@@ -307,8 +302,8 @@ class ChatBot:
             rendered = render_template('chat.html', pandora_base=request.url_root.strip('/'), query=query)
         
         resp = make_response(rendered)
-        self.ISOLATION_CODE = session.get("isolation_code")
-        # Console.warn(f'ISOLATION_CODE: {self.ISOLATION_CODE}')
+
+        # Console.warn(f'ISOLATION_CODE: {str(session.get("isolation_code"))}')
 
         if token_key:
             self.__set_cookie(resp, token_key, timedelta(days=30))
@@ -700,11 +695,11 @@ class ChatBot:
         offset = request.args.get('offset', '0')
         limit = request.args.get('limit', '28')
 
-        return self.__proxy_result(self.chatgpt.list_conversations(offset, limit, True, self.__get_token_key(), self.ISOLATION_CODE))
+        return self.__proxy_result(self.chatgpt.list_conversations(offset, limit, True, self.__get_token_key(), session.get("isolation_code")))
 
     def get_conversation(self, conversation_id):
 
-        return self.__proxy_result(self.chatgpt.get_conversation(conversation_id, True, self.__get_token_key(), self.ISOLATION_CODE))
+        return self.__proxy_result(self.chatgpt.get_conversation(conversation_id, True, self.__get_token_key(), session.get("isolation_code")))
 
     def del_or_rename_conversation(self, conversation_id):
         is_visible = request.json.get('is_visible')
@@ -780,7 +775,7 @@ class ChatBot:
         return send_from_directory(USER_CONFIG_DIR+'/files/'+file_id, file_name)
 
     def talk(self):
-        # Console.warn(f'ISOLATION_CODE: {self.ISOLATION_CODE}')
+        # Console.warn(f'ISOLATION_CODE: {session.get("isolation_code")}')
         web_origin = request.host_url[:-1]
         payload = request.json
         model = payload['model']
@@ -789,11 +784,11 @@ class ChatBot:
         if model == 'text-davinci-002-render-sha' and not getenv('PANDORA_LOCAL_OPTION'):
             OAI_Device_ID = request.headers.get('Oai-Device-Id')
 
-            return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID, self.ISOLATION_CODE), stream)
+            return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID, session.get("isolation_code")), stream)
                 
         return self.__process_stream(
             *self.chatgpt.talk(payload, stream,
-                               self.__get_token_key(), web_origin, self.ISOLATION_CODE), stream)
+                               self.__get_token_key(), web_origin, session.get("isolation_code")), stream)
 
     def goon(self):
         payload = request.json
@@ -803,7 +798,7 @@ class ChatBot:
         stream = payload.get('stream', True)
 
         return self.__process_stream(
-            *self.chatgpt.goon(model, parent_message_id, conversation_id, stream, self.__get_token_key(), self.ISOLATION_CODE), stream)
+            *self.chatgpt.goon(model, parent_message_id, conversation_id, stream, self.__get_token_key(), session.get("isolation_code")), stream)
 
     def regenerate(self):
         web_origin = request.host_url[:-1]
@@ -822,13 +817,13 @@ class ChatBot:
                 OAI_Device_ID = request.headers.get('Oai-Device-Id')
                 # return self.__proxy_result(self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID))
             
-                return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID, self.ISOLATION_CODE), stream)
+                return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID, session.get("isolation_code")), stream)
             else:
                 payload['model'] = gpt35_model
 
         return self.__process_stream(
             *self.chatgpt.talk(payload, stream,
-                               self.__get_token_key(), web_origin, self.ISOLATION_CODE), stream)
+                               self.__get_token_key(), web_origin, session.get("isolation_code")), stream)
     
     def arkose_dx(self):
         return self.__proxy_result(self.chatgpt.arkose_dx(request, self.__get_token_key()))

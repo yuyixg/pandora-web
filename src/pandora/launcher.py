@@ -469,7 +469,7 @@ def main():
     if args.debug:
         os.environ['PANDORA_DEBUG'] = 'True'
 
-    if args.isolate or getenv('PANDORA_ISOLATION') == 'True':
+    if args.isolate:
         if getenv('PANDORA_SITE_PASSWORD') == 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
             raise Exception('You have not set the site password, Unable to enable Isolation Mode!')
         
@@ -563,7 +563,7 @@ def main():
 
         chatgpt = TurboGPT(access_tokens, args.proxy)
     else:
-        chatgpt = ChatGPT(access_tokens, args.proxy, int(args.timeout), args.local, args.oai_only, args.debug or getenv("PANDORA_DEBUG"), args.isolate)
+        chatgpt = ChatGPT(access_tokens, args.proxy, int(args.timeout), args.local, args.oai_only, args.debug, args.isolate)
 
     if args.server or getenv("PANDORA_SERVER"):
         return ChatBotServer(chatgpt, args.verbose).run(args.server or getenv("PANDORA_SERVER"), args.threads or int(getenv("PANDORA_THREADS", 8)))
