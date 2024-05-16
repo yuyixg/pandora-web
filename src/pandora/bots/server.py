@@ -5,6 +5,7 @@ from datetime import timedelta
 from os.path import join, abspath, dirname
 from os import getenv
 
+import json
 from flask import Flask, jsonify, make_response, request, Response, render_template, redirect, session, send_from_directory
 from flask_cors import CORS
 from flask_session import Session
@@ -13,7 +14,7 @@ from werkzeug.exceptions import default_exceptions
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.serving import WSGIRequestHandler
 from datetime import datetime
-import json
+import traceback
 
 from .. import __version__
 from ..exts.hooks import hook_logging
@@ -31,9 +32,10 @@ class ChatBot:
         self.debug = debug
         self.sentry = sentry
         self.log_level = logging.DEBUG if debug else logging.WARN
-        self.LOCAL_OP = getenv('LOCAL_OP')
+        self.LOCAL_FLAG = getenv('PANDORA_LOCAL_OPTION')
         self.SITE_PASSWORD = getenv('PANDORA_SITE_PASSWORD') or getenv('PANDORA_SITE_PASSWD')
         self.ISOLATION_FLAG = getenv('PANDORA_ISOLATION')
+        self.OAI_ONLY = getenv('PANDORA_OAI_ONLY')
 
         hook_logging(level=self.log_level, format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
         self.logger = logging.getLogger('waitress')
@@ -109,6 +111,7 @@ class ChatBot:
         app.route('/backend-api/files/<file_id>/download', methods=['GET'])(self.file_upload_download)
         app.route('/backend-api/files/<file_id>', methods=['GET'])(self.get_file_upload_info)   # Except for the img file
         app.route('/files/<file_id>/<file_name>', methods=['GET'])(self.file_download)
+        app.route('/files/<file_id>', methods=['GET'])(self.oai_file_download)
 
         app.route('/backend-api/register-websocket', methods=['POST'])(self.register_websocket)
         app.route('/backend-api/conversation', methods=['POST'])(self.talk)
@@ -684,13 +687,6 @@ class ChatBot:
             }
         return jsonify(data)
     
-    def register_websocket(self):
-        # Console.debug_b('register_websocket => '.format(request.json))
-
-        # return self.__proxy_result(self.chatgpt.register_websocket(request, self.__get_token_key()))
-
-        return jsonify({})
-
     def list_conversations(self):
         offset = request.args.get('offset', '0')
         limit = request.args.get('limit', '28')
@@ -737,7 +733,7 @@ class ChatBot:
         file_size = payload['file_size']
 
         return self.__proxy_result(
-            self.chatgpt.file_start_upload(file_name, file_size, web_origin))
+            self.chatgpt.file_start_upload(file_name, file_size, web_origin, payload, self.__get_token_key()))
     
     def file_upload(self, file_id):
         if request.method == 'OPTIONS':  # 预检请求
@@ -746,33 +742,50 @@ class ChatBot:
         elif request.method == 'PUT':  # 文件上传请求
             file = request.data
             file_type = request.headers.get('Content-Type')
+            req_url = request.url
+            req_path_with_args = req_url.split('/', maxsplit=3)[-1]
+
             if file:
                 return self.__proxy_result(
-                        self.chatgpt.file_upload(file_id, file_type, file))
+                        self.chatgpt.file_upload(file_id, file_type, file, req_path_with_args, request.headers, self.__get_token_key()))
                 
     def file_ends_upload(self, file_id):
         web_origin = request.host_url[:-1]
 
         return self.__proxy_result(
-                        self.chatgpt.file_ends_upload(file_id, web_origin))
+                        self.chatgpt.file_ends_upload(file_id, web_origin, self.__get_token_key()))
     
     def file_upload_download(self, file_id):
         web_origin = request.host_url[:-1]
 
         return self.__proxy_result(
-                        self.chatgpt.file_upload_download(file_id, web_origin))
+                        self.chatgpt.file_upload_download(file_id, web_origin, self.__get_token_key()))
     
     def get_file_upload_info(self, file_id):
         return self.__proxy_result(
-                        self.chatgpt.get_file_upload_info(file_id))
-
-    
+                        self.chatgpt.get_file_upload_info(file_id, self.__get_token_key()))
+   
     def file_download(self, file_id, file_name):
         if not getenv('PANDORA_FILE_ACCESS') == 'True':
-            if not session.get("logged_in"):
+            if not session.get("logged_in") or self.SITE_PASSWORD != 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
                 return redirect("/login")
             
         return send_from_directory(USER_CONFIG_DIR+'/files/'+file_id, file_name)
+    
+    def oai_file_download(self, file_id):
+        if not session.get("logged_in") or self.SITE_PASSWORD != 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
+                return redirect("/login")
+        
+        req_url = request.url
+        req_path_with_args = req_url.split('/', maxsplit=3)[-1]
+
+        return self.chatgpt.oai_file_proxy(file_id, req_path_with_args, request.headers, self.__get_token_key())
+    
+    def register_websocket(self):
+        # if self.LOCAL_FLAG and self.LOCAL_FLAG == 'True':
+            return jsonify({})
+
+        # return self.__proxy_result(self.chatgpt.register_websocket(request, self.__get_token_key()))
 
     def talk(self):
         # Console.warn(f'ISOLATION_CODE: {session.get("isolation_code")}')
@@ -780,11 +793,16 @@ class ChatBot:
         payload = request.json
         model = payload['model']
         stream = payload.get('stream', True)
+        OAI_CONV = False
 
-        if model == 'text-davinci-002-render-sha' and not getenv('PANDORA_LOCAL_OPTION'):
+        if model == 'text-davinci-002-render-sha' or model == 'gpt-4o':
+            OAI_CONV = True
+
+        if OAI_CONV and (not self.LOCAL_FLAG or self.LOCAL_FLAG == 'False'):
             OAI_Device_ID = request.headers.get('Oai-Device-Id')
 
             return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID, session.get("isolation_code")), stream)
+            # return self.__proxy_result(self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID))
                 
         return self.__process_stream(
             *self.chatgpt.talk(payload, stream,
@@ -810,6 +828,16 @@ class ChatBot:
         stream = payload.get('stream', True)
         if not conversation_id:
             return self.talk()
+        
+        OAI_CONV = False
+
+        if model == 'text-davinci-002-render-sha' or model == 'auto':
+            OAI_CONV = True
+
+        if OAI_CONV and (not self.LOCAL_FLAG or self.LOCAL_FLAG == 'False'):
+            OAI_Device_ID = request.headers.get('Oai-Device-Id')
+
+            return self.__process_stream(*self.chatgpt.chat_ws(payload, self.__get_token_key(), OAI_Device_ID, session.get("isolation_code")), stream)
         
         if model == 'text-davinci-002-render-sha':
             gpt35_model = getenv('PANDORA_GPT35_MODEL')
@@ -871,21 +899,27 @@ class ChatBot:
 
     @staticmethod
     def __proxy_result(remote_resp):
-        if remote_resp == 404:  # 对于本需要透传的url, 当不启用OAI服务时直接return 404
-            # 不启用OAI服务时避免一堆报错
-            remote_resp = Response()
-            remote_resp.status = 404
-            remote_resp.text = b''
-            remote_resp.content_type = 'text/html; charset=utf-8'
+        try:
+            if remote_resp == 404:  # 对于本需要透传的url, 当不启用OAI服务时直接return 404
+                # 不启用OAI服务时避免一堆报错
+                remote_resp = Response()
+                remote_resp.status = 404
+                remote_resp.text = b''
+                remote_resp.content_type = 'text/html; charset=utf-8'
 
-        if remote_resp == 201:  # 文件上传
-            remote_resp = Response()
-            remote_resp.status = 201
-            remote_resp.text = b''
-            remote_resp.content_type = ''
+            if remote_resp == 201:  # 文件上传
+                remote_resp = Response()
+                remote_resp.status = 201
+                remote_resp.text = b''
+                remote_resp.content_type = ''
 
-        resp = make_response(remote_resp.text)
-        resp.content_type = remote_resp.headers['Content-Type']
-        resp.status_code = remote_resp.status_code
+            resp = make_response(remote_resp.text)
+            resp.content_type = remote_resp.headers['Content-Type']
+            resp.status_code = remote_resp.status_code
 
-        return resp
+            return resp
+        
+        except Exception as e:
+            # error_detail = traceback.format_exc()
+            # Console.debug(error_detail)
+            Console.warn('server_proxy_result ERROR: {}'.format(e))

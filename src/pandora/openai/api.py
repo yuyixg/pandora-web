@@ -129,9 +129,12 @@ class API:
         original_conv_id = conversation_id
         index = 0
         # SAVE_ASSISTANT_MSG = False
-
         msg_id = str(uuid.uuid4())
         create_time = int(time.time())
+
+        if model == 'gpt-4o' and not self.LOCAL_OP and not self.OAI_ONLY: # 0516: 同时启用OAI与API模式时避免与OAI模型冲突
+            if API_DATA and API_DATA.get(model):
+                model = 'gpt-4o-api'
 
         SHOW_RESP_MSG = False  # dev
 
@@ -140,9 +143,10 @@ class API:
                 if isinstance(utf8_line, bytes):
                     utf8_line = utf8_line.decode('utf-8')
 
+                # dev
                 # Console.warn(utf8_line)
                 
-                # dev
+                # debug mode
                 if not SHOW_RESP_MSG and self.PANDORA_DEBUG:
                     Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + '{}'.format(utf8_line))
                     SHOW_RESP_MSG = True
@@ -178,7 +182,7 @@ class API:
                         # 创建隔离OAI对话
                         if not original_conv_id and self.ISOLATION_FLAG and isolation_code:
                             if self.OAI_ONLY or (API_DATA and API_DATA.get(model) is None):
-                                # Console.warn('OAI隔离模式, 创建对话')
+                                Console.warn('OAI隔离模式, 创建对话')
                                 LocalConversation.create_conversation(conversation_id, official_title, datetime.now(tzutc()).isoformat(), isolation_code)
 
                     # 0412: 为避免一些OAI接口返回重复id, 因此改为自主生成
@@ -235,7 +239,7 @@ class API:
                     resp_content += utf8_line
 
                 # 适配DALL·E
-                if 'dall-e' in model:
+                if 'dall' in model:
                     if '      "revised_prompt": ' in utf8_line[0:25]:
                         resp_content += utf8_line[25:-2]
 
@@ -269,7 +273,7 @@ class API:
             if self.OAI_ONLY or (API_DATA and API_DATA.get(model) is None):
                 if not official_title:
                     official_title = prompt
-                    # Console.warn('OAI隔离模式, 创建对话')
+                    Console.warn('OAI隔离模式, 创建对话(无title生成)')
                     LocalConversation.create_conversation(conversation_id, prompt, datetime.now(tzutc()).isoformat(), isolation_code)
   
     async def __process_sse_origin(self, resp):
@@ -388,6 +392,9 @@ class ChatGPT(API):
             'allow_redirects': False,
             'impersonate': 'chrome110',
         }
+
+        if len(self.access_token_key_list) > 1:
+            self.access_token_key_iter = iter(self.access_token_key_list)
 
         # self.user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) ' \
         #                   'Pandora/{} Safari/537.36'.format(__version__)
@@ -515,24 +522,39 @@ class ChatGPT(API):
     
     def list_models(self, raw=False, token=None, web_origin=None, gpt35_model=None, gpt4_model=None):
         self.web_origin = web_origin
+        OAI_FLAG = False
+        OAI_GPT4O_FLAG = False
 
-        if self.OAI_ONLY:
-            try:
-                url = '{}/backend-api/models'.format(self.__get_api_prefix())
-                resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
+        # if not self.LOCAL_OP:
+        #     try:
+        #         url = '{}/backend-api/models?history_and_training_disabled=false'.format(self.__get_api_prefix())
+        #         resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
 
-                if resp.status_code == 200:
-                    result = resp.json()
+        #         if resp.status_code == 200:
+        #             oai_result = resp.json()
 
-                    return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
-                
-                return
+        #             # if self.OAI_ONLY:
+        #             #     return self.fake_resp(fake_data=json.dumps(oai_result, ensure_ascii=False))
+                    
+        #             OAI_FLAG = True
+
+        #             for item in oai_result['models']:
+        #                 if item['slug'] == 'gpt-4o':
+        #                     OAI_GPT4O_FLAG = True
+        #                     break
+
+        #         else:
+        #             Console.warn('list_models FAILED: resp.status_code={}'.format(str(resp.status_code))
+        #             + ' | Content-Type={}'.format(resp.headers.get('Content-Type')))
+        #             Console.warn('list_models FAILED: resp.text={}'.format(resp.text))
             
-            except Exception as e:
-                error_detail = traceback.format_exc()
-                Console.debug(error_detail)
-                Console.warn('list_models FAILED: {}'.format(e))
-                return
+        #     except Exception as e:
+        #         error_detail = traceback.format_exc()
+        #         Console.debug(error_detail)
+        #         Console.warn('list_models FAILED: {}'.format(e))
+
+        #         if self.OAI_ONLY:
+        #             return
 
         result = {
             "models": [],
@@ -549,13 +571,13 @@ class ChatGPT(API):
                     "category": "gpt_4",
                     "human_category_name": "GPT-4",
                     "subscription_level": "free",
-                    "default_model": gpt4_model if gpt4_model else "gpt-4",
-                    "plugins_model": gpt4_model if gpt4_model else "gpt-4"
+                    "default_model": gpt4_model if gpt4_model else ("gpt-4o" if not self.LOCAL_OP else "gpt-4"),
+                    "plugins_model": gpt4_model if gpt4_model else ("gpt-4o" if not self.LOCAL_OP else "gpt-4")
                 }
             ]
         }
 
-        if not gpt35_model:
+        if not gpt35_model or OAI_FLAG:
             result['models'].append({
                 "slug": "text-davinci-002-render-sha",
                 "max_tokens": 8191,
@@ -568,10 +590,30 @@ class ChatGPT(API):
                 "product_features": {}
             })
 
-        if API_DATA:
+        # if OAI_GPT4O_FLAG:
+        if not self.LOCAL_OP:
+            result['models'].append({
+                "slug": "gpt-4o",
+                "max_tokens": 8191,
+                "title": "GPT-4o",
+                "description": "Newest and most advanced model",
+                # "enabled_tools": [
+                #     "tools",
+                #     "tools2"
+                # ],
+                "tags": [
+                    "gpt3.5"
+                ],
+                "capabilities": {},
+                # "product_features": {"attachments":{"type":"retrieval","accepted_mime_types":["text/javascript","text/x-c","text/x-c++","application/msword","application/vnd.openxmlformats-officedocument.presentationml.presentation","text/plain","text/x-sh","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/x-latext","text/x-php","application/pdf","application/json","text/x-script.python","text/x-ruby","text/html","text/x-tex","text/x-typescript","text/x-java","text/x-csharp","text/markdown"],"image_mime_types":["image/gif","image/webp","image/png","image/jpeg"],"can_accept_all_mime_types":True}} if self.OAI_ONLY else {}
+                "product_features": {}
+            })
+
+
+        if not self.OAI_ONLY and API_DATA:
             for item in API_DATA.values():
                 title = item['title']
-                slug = item['slug']
+                slug = 'gpt-4o-api' if item['slug'] == 'gpt-4o' and not self.LOCAL_OP else item['slug']
                 description = item['description']
                 max_tokens = item['max_tokens']
 
@@ -690,9 +732,9 @@ class ChatGPT(API):
 
             if convs_data.get('list_data'):
                 for item in convs_data['list_data']:
-                    if item['visible'] == 1 or item['visible'] == '1':
+                    # if item['visible'] == 1 or item['visible'] == '1':    # 0516: MasterCode可查看已隐藏的对话
                         id = item['id']
-                        title = item['title']
+                        title = item['title'] if item['visible'] == 1 or item['visible'] == '1' else '🔒'+item['title']
                         create_time = item['create_time']
                         update_time = item['update_time']
 
@@ -759,6 +801,7 @@ class ChatGPT(API):
             resp = self.session.post(url=url, headers=self.__get_headers(token), data=data, **self.req_kwargs)
 
             if resp.status_code == 200:
+                Console.warn('register_websocket SUCCESS')
                 return resp
             else:
                 Console.warn('register_websocket FAILED: Status_Code={} | Content_Type={}'.format(str(resp.status_code), resp.headers.get('Content-Type')))
@@ -778,7 +821,8 @@ class ChatGPT(API):
         return resp
 
     def get_conversation(self, conversation_id, raw=False, token=None, isolation_code=None):
-        if self.ISOLATION_FLAG or os.path.exists(API_CONFIG_FILE) or not self.OAI_ONLY:
+        # if self.ISOLATION_FLAG or os.path.exists(API_CONFIG_FILE) or not self.OAI_ONLY:
+        if self.ISOLATION_FLAG or not self.OAI_ONLY:
             # conversation_info = LocalConversation.check_conversation_exist(conversation_id, isolation_code)
             # if conversation_info:
             #     return LocalConversation.get_conversation(conversation_id, isolation_code)
@@ -878,7 +922,26 @@ class ChatGPT(API):
         return self.__update_conversation(conversation_id, data, raw, token)
     
     
-    def file_start_upload(self, file_name, file_size, web_origin):
+    def file_start_upload(self, file_name, file_size, web_origin=None, payload=None, token=None):
+        if self.OAI_ONLY:
+            url = '{}/backend-api/files'.format(self.__get_api_prefix())
+            resp = self.session.post(url=url, headers=self.__get_headers(token), json=payload, **self.req_kwargs)
+
+            if resp.status_code == 200:
+                Console.warn('file_start_upload SUCCESS')
+                result = resp.json()
+                Console.warn('file_start_upload result: {}'.format(result))
+                upload_url = result.get('upload_url')
+                fake_upload_url = web_origin + '/files/' + upload_url.split('/', maxsplit=3)[-1]
+                result['upload_url'] = fake_upload_url
+
+                return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+            
+            else:
+                Console.warn('file_start_upload FAILED: ' + self.__get_error(resp))
+                return self.fake_resp(fake_data=json.dumps({'code': resp.status_code, 'message':'file_start_upload failed!'}))
+
+
         file_type = file_name.split('.')[-1].lower()
         # Console.warn('file_type: {}'.format(file_type))
         if self.UPLOAD_TYPE_WHITELIST and file_type not in self.UPLOAD_TYPE_WHITELIST:
@@ -911,7 +974,81 @@ class ChatGPT(API):
 
         return self.fake_resp(fake_data=json.dumps(data, ensure_ascii=False))
     
-    def file_upload(self, file_id, file_type, file):
+    def file_upload(self, file_id, file_type, file, req_path_with_args, original_headers, token=None):
+        if self.OAI_ONLY:
+            url = 'https://files.oaiusercontent.com/{}'.format(req_path_with_args)
+            op_header = {
+                'Accept': '*/*',
+                'Accept-Encoding': 'gzip, deflate, br, zstd',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Access-Control-Request-Headers': 'content-type,x-ms-blob-type,x-ms-version',
+                'Headers': '',
+                'Access-Control-Request-Method': 'PUT',
+                'Cache-Control': 'no-cache',
+                'Origin': 'https://chatgpt.com',
+                'Pragma': 'no-cache',
+                'Priority': 'u=1, i',
+                'Referer': 'https://chatgpt.com/',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'cross-site',
+                'User-Agent': self.user_agent
+            }
+            Console.warn(url)
+            op_resp = self.session.options(url=url, headers=op_header, **self.req_kwargs)
+
+            if op_resp.status_code == 200:
+                Console.warn('file_upload_options SUCCESS')
+                # return 201
+
+            else:
+                Console.warn('file_upload_options FAILED: ' + self.__get_error(op_resp))
+                error_response = Response()
+                error_response.status_code = op_resp.status_code
+                error_response._content = op_resp.content
+                error_response.headers = {'Content-Type': op_resp.headers.get('Content-Type')}
+
+                return error_response
+
+            put_header = {
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Encoding': 'gzip, deflate, br, zstd',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Authorization': 'Bearer ' + self.get_access_token(token),
+                'Cache-Control': 'no-cache',
+                'Content-Type': file_type,
+                'Origin': 'https://chatgpt.com',
+                'Pragma': 'no-cache',
+                'Priority': 'u=1, i',
+                'Referer': 'https://chatgpt.com/',
+                'Sec-Ch-Ua': self.user_agent,
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': "Windows",
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'cross-site',
+                'User-Agent': self.user_agent,
+                'X-Ms-Blob-Type': 'BlockBlob',
+                'X-Ms-Version': '2020-04-08'
+            }
+            Console.debug(put_header)
+
+            put_resp = self.session.put(url=url, headers=put_header, data=file, **self.req_kwargs)
+
+            if put_resp.status_code == 200 or put_resp.status_code == 201:
+                Console.warn('file_upload_put SUCCESS')
+                return 201
+
+            else:
+                Console.warn('file_upload_put FAILED: ' + self.__get_error(put_resp))
+                error_response = Response()
+                error_response.status_code = put_resp.status_code
+                error_response._content = put_resp.content
+                error_response.headers = {'Content-Type': op_resp.headers.get('Content-Type')}
+
+                return error_response
+
+
         if self.FILE_SIZE_LIMIT:
             try:
                 file_size_MB = int(len(file)) / 1024 / 1024
@@ -930,7 +1067,26 @@ class ChatGPT(API):
 
         return 201
     
-    def file_ends_upload(self, file_id, web_origin):
+    def file_ends_upload(self, file_id, web_origin, token=None):
+        if self.OAI_ONLY:
+            url = '{}/backend-api/files/{}/uploaded'.format(self.__get_api_prefix(), file_id)
+            resp = self.session.post(url=url, headers=self.__get_headers(token), json={}, **self.req_kwargs)
+
+            if resp.status_code == 200:
+                Console.warn('file_ends_upload SUCCESS')
+                result = resp.json()
+                Console.warn('file_ends_upload result: {}'.format(result))
+                download_url = result.get('download_url')
+                fake_download_url = web_origin + '/files/' + download_url.split('/', maxsplit=3)[-1]
+                result['download_url'] = fake_download_url
+
+                return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+            
+            else:
+                Console.warn('file_ends_upload FAILED: ' + self.__get_error(resp))
+                return self.fake_resp(fake_data=json.dumps({'code': resp.status_code, 'message':'file_ends_upload failed!'}))
+
+
         file_name, file_size, file_type, create_time = LocalConversation.get_file_upload_info(file_id)
 
         data = {
@@ -943,7 +1099,25 @@ class ChatGPT(API):
 
         return self.fake_resp(fake_data=json.dumps(data, ensure_ascii=False))
     
-    def file_upload_download(self, file_id, web_origin):
+    def file_upload_download(self, file_id, web_origin, token=None):
+        if self.OAI_ONLY:
+            url = '{}/backend-api/files/{}/download'.format(self.__get_api_prefix(), file_id)
+            resp = self.session.post(url=url, headers=self.__get_headers(token), json={}, **self.req_kwargs)
+
+            if resp.status_code == 200:
+                Console.warn('file_upload_download SUCCESS')
+                result = resp.json()
+                Console.warn('file_upload_download result: {}'.format(result))
+                download_url = result.get('download_url')
+                fake_download_url = web_origin + '/files/' + download_url.split('/', maxsplit=3)[-1]
+                result['download_url'] = fake_download_url
+
+                return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+            
+            else:
+                Console.warn('file_upload_download FAILED: ' + self.__get_error(resp))
+                return self.fake_resp(fake_data=json.dumps({'code': resp.status_code, 'message':'file_upload_download failed!'}))
+
         file_name, file_size, file_type, create_time = LocalConversation.get_file_upload_info(file_id)
 
         data = {
@@ -956,7 +1130,23 @@ class ChatGPT(API):
 
         return self.fake_resp(fake_data=json.dumps(data, ensure_ascii=False))
     
-    def get_file_upload_info(self, file_id):
+    def get_file_upload_info(self, file_id, token=None):
+        if self.OAI_ONLY:
+            url = '{}/backend-api/files/{}'.format(self.__get_api_prefix(), file_id)
+            resp = self.session.post(url=url, headers=self.__get_headers(token), json={}, **self.req_kwargs)
+
+            if resp.status_code == 200:
+                Console.warn('get_file_upload_info SUCCESS')
+                result = resp.json()
+
+                return self.fake_resp(fake_data=json.dumps(result, ensure_ascii=False))
+            
+            else:
+                Console.warn('file_upload_download FAILED: ' + self.__get_error(resp))
+                return self.fake_resp(fake_data=json.dumps({'code': resp.status_code, 'message':'file_upload_download failed!'}))
+
+        file_name, file_size, file_type, create_time = LocalConversation.get_file_upload_info(file_id)
+
         file_name, file_size, file_type, create_time = LocalConversation.get_file_upload_info(file_id)
 
         data = {
@@ -979,6 +1169,36 @@ class ChatGPT(API):
         }
 
         return self.fake_resp(fake_data=json.dumps(data, ensure_ascii=False))
+    
+
+    def oai_file_proxy(self, file_id, req_path_with_args, original_headers, token=None):
+        url = 'https://files.oaiusercontent.com//{}'.format(req_path_with_args)
+        header = {
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br, zstd',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Authorization':'Bearer ' + self.get_access_token(token),
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Priority': 'u=1, i',
+                'Referer': 'https://chatgpt.com/',
+                'Sec-Ch-Ua': self.user_agent,
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': "Windows",
+                'Sec-Fetch-Dest': 'image',
+                'Sec-Fetch-Mode': 'no-cors',
+                'Sec-Fetch-Site': 'cross-site',
+                'User-Agent': self.user_agent,
+            }
+        
+        resp = self.session.get(url=url, headers=header, **self.req_kwargs)
+        if resp.status_code == 200:
+            Console.warn('oai_file_proxy SUCCESS')
+            return Response(resp.content, mimetype=resp.headers['Content-Type'])
+        
+        else:
+            Console.warn('oai_file_proxy FAILED: ' + self.__get_error(resp))
+            return Response(resp.text, status=resp.status_code)
 
 
     # def talk(self, prompt, model, message_id, parent_message_id, conversation_id=None, stream=True, token=None):
@@ -999,6 +1219,9 @@ class ChatGPT(API):
             content = str(parts)
             model = payload['model']
             message_id = payload['message_id']
+
+        if model == 'gpt-4o-api':
+            model = 'gpt-4o'
         
         conversation_id = payload.get('conversation_id')
         parent_message_id = payload['parent_message_id']
@@ -1083,6 +1306,7 @@ class ChatGPT(API):
 
         if resp.status_code == 200:
             resp_data = resp.json()
+            # Console.warn(resp_data)
             fallback_data = {'Openai-Sentinel-Chat-Requirements-Token': resp_data['token']}
 
             if resp_data.get('proofofwork'):
@@ -1115,11 +1339,22 @@ class ChatGPT(API):
                 headers['Openai-Sentinel-Chat-Requirements-Token'] = chat_requirements_data['Openai-Sentinel-Chat-Requirements-Token']
                 if chat_requirements_data.get('Openai-Sentinel-Proof-Token'):
                     headers['Openai-Sentinel-Proof-Token'] = chat_requirements_data['Openai-Sentinel-Proof-Token']
+            # Console.warn('chat_ws:headers SUCCESS')
+
+            headers['Accept'] = 'text/event-stream'
+            model = payload['model']
+            if model == 'auto':
+                payload['model'] = 'gpt-4o'
 
             # resp = self.session.post(url=url, headers=headers, json=payload, **self.req_kwargs)
 
             # if resp.status_code == 200:
+            #     Console.warn('chat_ws SUCCESS')
             #     return resp
+            # else:
+            #     Console.warn('chat_ws SUCCESS')
+            #     Console.warn('chat_ws FAILED: Status_Code={} | Content_Type={}'.format(str(resp.status_code), resp.headers.get('Content-Type')))
+            #     Console.warn('chat_ws FAILED: {}'.format(resp.text))
             
             # return API.error_fallback(resp.text)
                 
@@ -1128,6 +1363,7 @@ class ChatGPT(API):
                 parts = payload['messages'][0]['content']['parts']
                 content = str(parts[0]) if len(parts) == 1 else str(parts[-1])
                 model = payload['model']
+                # model = 'auto'
                 message_id = payload['messages'][0]['id']
 
             else:
@@ -1281,6 +1517,9 @@ class ChatGPT(API):
         return self.__request_conversation(data, token, isolation_code)
 
     def regenerate_reply(self, prompt, model, conversation_id, message_id, parent_message_id, stream=True, token=None, isolation_code=None):
+        if model == 'gpt-4o-api':
+            model = 'gpt-4o'
+
         data = {
             'action': 'variant',
             'messages': [
@@ -1439,15 +1678,6 @@ class ChatGPT(API):
             return None
 
     def __request_conversation(self, data, token=None, isolation_code=None):
-        # if not getenv('PANDORA_LOCAL_OPTION'):
-        #     # url = '{}/api/conversation'.format(self.__get_api_prefix())
-        #     url = '{}/backend-api/conversation'.format(self.__get_api_prefix())
-        #     headers = {**self.session.headers, **self.__get_headers(token)}
-
-        # else:
-        #     # headers = {**self.session.headers, 'Accept': 'text/event-stream'}
-        #     headers = {**self.session.headers}
-
         if data['model'] in API_DATA:
             # Console.warn('Request conversation: {}'.format(data['messages'][0]))
             if data.get('messages'):
@@ -1653,7 +1883,7 @@ class ChatGPT(API):
                     return self._request_sse(img_url, headers, gen_img_data, conversation_id, message_id, model, action, content)
 
                 # 适配DALL·E
-                if 'dall-e' in model:
+                if 'dall' in model:
                     fake_data = {
                         "model": model,
                         "prompt": content,
@@ -1719,6 +1949,14 @@ class ChatGPT(API):
         # return self._request_sse(url=url, headers=headers, data=data)
 
     def __update_conversation(self, conversation_id, data, raw=False, token=None):
+        if self.ISOLATION_FLAG:
+            if 'is_visible' in data.keys():
+                LocalConversation.del_conversation(conversation_id)
+
+            if 'title' in data.keys():
+                title = data['title']
+                LocalConversation.rename_conversation(title, conversation_id)
+
         url = '{}/backend-api/conversation/{}'.format(self.__get_api_prefix(), conversation_id)
         # url = '{}/backend-api/conversation/{}'.format(self.__get_api_prefix(), conversation_id)
         resp = self.session.patch(url=url, headers=self.__get_headers(token), json=data, **self.req_kwargs)

@@ -265,7 +265,7 @@ class LocalConversation:
         try:
             if ISOLATION_FLAG == 'True' and isolation_code:
                 if isolation_code == ISOLATION_MASTER_CODE:
-                    convs_data = convs_database_cursor.execute("SELECT * FROM list_conversations_isolated WHERE visible=1 ORDER BY update_time DESC LIMIT ?, ?", (offset, limit)).fetchall()
+                    convs_data = convs_database_cursor.execute("SELECT * FROM list_conversations_isolated ORDER BY update_time DESC LIMIT ?, ?", (offset, limit)).fetchall()
                 else:
                     convs_data = convs_database_cursor.execute("SELECT * FROM list_conversations_isolated WHERE isolation_code=? AND visible=1 ORDER BY update_time DESC LIMIT ?, ?", (isolation_code, offset, limit)).fetchall()
             else:
