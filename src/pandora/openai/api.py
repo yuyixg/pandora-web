@@ -866,14 +866,18 @@ class ChatGPT(API):
         return result['success']
 
     def del_conversation(self, conversation_id, raw=False, token=None):
-        if os.path.exists(API_CONFIG_FILE):
-            # conversation_info = LocalConversation.check_conversation_exist(conversation_id)
-            # if conversation_info:
-            #     return LocalConversation.del_conversation(conversation_id)
-
-            # 不检查对话是否存在, 直接请求删除对话. 2024-05-05
+        if self.LOCAL_OP:
             return LocalConversation.del_conversation(conversation_id)
-            
+        
+        if self.ISOLATION_FLAG or not self.OAI_ONLY:
+            if not self.LOCAL_OP or self.ISOLATION_FLAG:
+                EXIT_FLAG = LocalConversation.check_conversation_exist(conversation_id)
+
+                if EXIT_FLAG:
+                    return LocalConversation.del_conversation(conversation_id)
+                else:
+                    LocalConversation.del_conversation(conversation_id, True)
+
         data = {
             'is_visible': False,
         }
@@ -907,13 +911,17 @@ class ChatGPT(API):
         return result['title']
 
     def set_conversation_title(self, conversation_id, title, raw=False, token=None):
-        if os.path.exists(API_CONFIG_FILE):
-            # conversation_info = LocalConversation.check_conversation_exist(conversation_id)
-            # if conversation_info:
-            #     return LocalConversation.rename_conversation(title, conversation_id)
-            
-            # 不检查对话是否存在, 直接请求对话. 2024-05-05
+        if self.LOCAL_OP:
             return LocalConversation.rename_conversation(title, conversation_id)
+        
+        if self.ISOLATION_FLAG or not self.OAI_ONLY:
+            if not self.LOCAL_OP or self.ISOLATION_FLAG:
+                EXIT_FLAG = LocalConversation.check_conversation_exist(conversation_id)
+
+                if EXIT_FLAG:
+                    return LocalConversation.rename_conversation(title, conversation_id)
+                else:
+                    LocalConversation.rename_conversation(title, conversation_id)
             
         data = {
             'title': title,

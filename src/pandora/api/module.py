@@ -219,10 +219,10 @@ class LocalConversation:
         convs_database_cursor.close()
 
     @staticmethod
-    def del_conversation(conversation_id):
+    def del_conversation(conversation_id, DELETE_FLAG=False):
         convs_database_cursor = convs_database.cursor()
 
-        if getenv('PANDORA_TRUE_DELETE'):
+        if getenv('PANDORA_TRUE_DELETE') or DELETE_FLAG:
             convs_database_cursor.execute(f"DELETE FROM {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} WHERE id=?", (conversation_id,))
             convs_database_cursor.execute("DELETE FROM conversations WHERE id=?", (conversation_id,))
 
@@ -303,10 +303,16 @@ class LocalConversation:
             # else:
             #     conversation_info = convs_database_cursor.execute("SELECT id FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
 
-            conversation_info = convs_database_cursor.execute(f"SELECT id FROM {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} WHERE id=? AND visible=1", (conversation_id,)).fetchone()
+            # conversation_info = convs_database_cursor.execute(f"SELECT id FROM {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} WHERE id=? AND visible=1", (conversation_id,)).fetchone()
+
+            EXIT_FLAG = convs_database_cursor.execute(f"SELECT id FROM conversations WHERE id=?", (conversation_id,)).fetchone()
 
             convs_database_cursor.close()
-            return conversation_info
+
+            if EXIT_FLAG:
+                return True
+            else:
+                return False
         
         except Exception as e:
             Console.warn(f'check_conversation_exist ERROR: {str(e)}')
