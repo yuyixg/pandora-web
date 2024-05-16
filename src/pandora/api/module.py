@@ -253,7 +253,7 @@ class LocalConversation:
             if ISOLATION_FLAG == 'True' and isolation_code:
                 # Console.warn(f'isolation_code: {isolation_code}')
                 if isolation_code == ISOLATION_MASTER_CODE:
-                    convs_total = convs_database_cursor.execute("SELECT COUNT(id) FROM list_conversations_isolated WHERE visible=1").fetchone()[0]
+                    convs_total = convs_database_cursor.execute("SELECT COUNT(id) FROM list_conversations_isolated").fetchone()[0]
                 else:
                     convs_total = convs_database_cursor.execute("SELECT COUNT(id) FROM list_conversations_isolated WHERE isolation_code=? AND visible=1", (isolation_code,)).fetchone()[0]
             else:
@@ -323,7 +323,7 @@ class LocalConversation:
         # else:
         #     list_conversation_info = convs_database_cursor.execute("SELECT * FROM list_conversations WHERE id=? AND visible=1", (conversation_id,)).fetchone()
 
-        list_conversation_info = convs_database_cursor.execute(f"SELECT * FROM {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} WHERE id=? AND visible=1", (conversation_id,)).fetchone()
+        list_conversation_info = convs_database_cursor.execute(f"SELECT * FROM {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} WHERE id=?", (conversation_id,)).fetchone()
         
         
         if list_conversation_info:
