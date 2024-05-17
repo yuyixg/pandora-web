@@ -14,6 +14,7 @@ import os
 import json
 from requests.models import Response
 import jwt
+import traceback
 
 API_CONFIG_FILE = (USER_CONFIG_DIR + '/api.json') if not getenv('PANDORA_SERVERLESS') else join(os.path.dirname(os.path.abspath(__file__)), '../../../data/api.json')
 API_DATA = []
@@ -82,6 +83,7 @@ class LocalConversation:
         convs_database_cursor = convs_database.cursor()
 
         if ISOLATION_FLAG == 'True':
+            # Console.warn('Isolation Mode: ON')
             convs_database_cursor.execute('''
                 CREATE TABLE IF NOT EXISTS list_conversations_isolated (
                     id TEXT PRIMARY KEY,
@@ -149,80 +151,69 @@ class LocalConversation:
 
     @staticmethod
     def create_conversation(id, title, time, isolation_code=None):
-        title = title[:40] if title else 'New Chat'
+        try:
+            title = title[:40] if title else 'New Chat'
 
-        convs_database_cursor = convs_database.cursor()
+            convs_database_cursor = convs_database.cursor()
 
-        # 已修改为初始化时创建数据表. 2024-05-05
-        # if ISOLATION_FLAG == 'True':
-        #     convs_database_cursor.execute('''
-        #     CREATE TABLE IF NOT EXISTS list_conversations_isolated (
-        #         id TEXT PRIMARY KEY,
-        #         title TEXT NOT NULL,
-        #         create_time TEXT NOT NULL,
-        #         update_time TEXT NOT NULL,
-        #         isolation_code TEXT NOT NULL,
-        #         visible BOOLEAN DEFAULT 1
-        #     )
-        # ''')
+            if ISOLATION_FLAG == 'True':
+                convs_database_cursor.execute("INSERT INTO list_conversations_isolated (id, title, create_time, update_time, isolation_code, visible) VALUES (?, ?, ?, ?, ?, ?)",
+                    (id, title, str(time), str(time), isolation_code, 1)
+                )
+            else:
+                convs_database_cursor.execute("INSERT INTO list_conversations (id, title, create_time, update_time, visible) VALUES (?, ?, ?, ?, ?)",
+                    (id, title, str(time), str(time), 1)
+                )
             
-        # else:
-        #     convs_database_cursor.execute('''
-        #         CREATE TABLE IF NOT EXISTS list_conversations (
-        #             id TEXT PRIMARY KEY,
-        #             title TEXT NOT NULL,
-        #             create_time TEXT NOT NULL,
-        #             update_time TEXT NOT NULL,
-        #             visible BOOLEAN DEFAULT 1
-        #         )
-        #     ''')
+            convs_database.commit()
+            convs_database_cursor.close()
 
-        if ISOLATION_FLAG == 'True' and isolation_code:
-            convs_database_cursor.execute("INSERT INTO list_conversations_isolated (id, title, create_time, update_time, isolation_code, visible) VALUES (?, ?, ?, ?, ?, ?)",
-                (id, title, str(time), str(time), isolation_code, 1)
-            )
-        else:
-            convs_database_cursor.execute("INSERT INTO list_conversations (id, title, create_time, update_time, visible) VALUES (?, ?, ?, ?, ?)",
-                (id, title, str(time), str(time), 1)
-            )
-        
-        convs_database.commit()
-        convs_database_cursor.close()
+        except Exception as e:
+            error_detail = traceback.format_exc()
+            Console.debug(error_detail)
+            Console.warn('create_conversation FAILED: {}'.format(e))
 
     @staticmethod
     def save_conversation(conversation_id, message_id, content, role, time, model, action):
-        dt = datetime.fromisoformat(time.replace("+08:00", "+00:00").replace("Z", "+00:00"))
-        local_time = dt.strftime('%Y-%m-%d %H:%M:%S')
+        try:
+            dt = datetime.fromisoformat(time.replace("+08:00", "+00:00").replace("Z", "+00:00"))
+            local_time = dt.strftime('%Y-%m-%d %H:%M:%S')
 
-        convs_database_cursor = convs_database.cursor()
-        convs_database_cursor.execute('''
-            CREATE TABLE IF NOT EXISTS conversations (
-                id TEXT NOT NULL,
-                message_id TEXT NOT NULL PRIMARY KEY,
-                role TEXT NOT NULL,
-                message TEXT NOT NULL,
-                model TEXT,
-                create_time TEXT NOT NULL,
-                local_time TEXT
+            convs_database_cursor = convs_database.cursor()
+            convs_database_cursor.execute('''
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id TEXT NOT NULL,
+                    message_id TEXT NOT NULL PRIMARY KEY,
+                    role TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    model TEXT,
+                    create_time TEXT NOT NULL,
+                    local_time TEXT
+                )
+            ''')    # 此处的id为conversation_id
+
+            if not (action == 'variant' and role == 'user'):
+                convs_database_cursor.execute("INSERT INTO conversations (id, message_id, role, message, model, create_time, local_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (conversation_id, message_id, role, content, model, str(time), str(local_time)))
+            
+            convs_database_cursor.execute(f"UPDATE {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} SET update_time = ? WHERE id = ?",
+                (str(time), conversation_id)
             )
-        ''')    # 此处的id为conversation_id
+            
+            convs_database.commit()
+            convs_database_cursor.close()
 
-        if not (action == 'variant' and role == 'user'):
-            convs_database_cursor.execute("INSERT INTO conversations (id, message_id, role, message, model, create_time, local_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (conversation_id, message_id, role, content, model, str(time), str(local_time)))
-        
-        convs_database_cursor.execute("UPDATE list_conversations SET update_time = ? WHERE id = ?",
-            (str(time), conversation_id)
-        )
-        
-        convs_database.commit()
-        convs_database_cursor.close()
+        except Exception as e:
+            error_detail = traceback.format_exc()
+            Console.debug(error_detail)
+            Console.warn('save_conversation FAILED: {}'.format(e))
+
 
     @staticmethod
-    def del_conversation(conversation_id, DELETE_FLAG=False):
+    def del_conversation(conversation_id, DELETE_FLAG=False, isolation_code=None):
         convs_database_cursor = convs_database.cursor()
 
-        if getenv('PANDORA_TRUE_DELETE') or DELETE_FLAG:
+        if getenv('PANDORA_TRUE_DELETE') == 'True' or DELETE_FLAG or isolation_code == ISOLATION_MASTER_CODE:
             convs_database_cursor.execute(f"DELETE FROM {'list_conversations_isolated' if ISOLATION_FLAG=='True' else 'list_conversations'} WHERE id=?", (conversation_id,))
             convs_database_cursor.execute("DELETE FROM conversations WHERE id=?", (conversation_id,))
 

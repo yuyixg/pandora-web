@@ -701,7 +701,7 @@ class ChatBot:
         is_visible = request.json.get('is_visible')
         if is_visible is False:
 
-            return self.__proxy_result(self.chatgpt.del_conversation(conversation_id, True, self.__get_token_key()))
+            return self.__proxy_result(self.chatgpt.del_conversation(conversation_id, True, self.__get_token_key(), session.get("isolation_code")))
         
         title = request.json.get('title')
 

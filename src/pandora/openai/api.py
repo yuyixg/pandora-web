@@ -410,6 +410,7 @@ class ChatGPT(API):
         #     LocalConversation.initialize_database()
 
         if ISOLATION_FLAG or not OAI_ONLY:
+            # Console.warn('Initialize LocalConversation Database')
             LocalConversation.initialize_database()
 
         if PANDORA_TYPE_WHITELIST:
@@ -865,18 +866,18 @@ class ChatGPT(API):
 
         return result['success']
 
-    def del_conversation(self, conversation_id, raw=False, token=None):
+    def del_conversation(self, conversation_id, raw=False, token=None, isolation_code=None):
         if self.LOCAL_OP:
-            return LocalConversation.del_conversation(conversation_id)
+            return LocalConversation.del_conversation(conversation_id, False, isolation_code)
         
         if self.ISOLATION_FLAG or not self.OAI_ONLY:
             if not self.LOCAL_OP or self.ISOLATION_FLAG:
                 EXIT_FLAG = LocalConversation.check_conversation_exist(conversation_id)
 
                 if EXIT_FLAG:
-                    return LocalConversation.del_conversation(conversation_id)
+                    return LocalConversation.del_conversation(conversation_id, False, isolation_code)
                 else:
-                    LocalConversation.del_conversation(conversation_id, True)
+                    LocalConversation.del_conversation(conversation_id, True)   # 0516: 完全删除OAI对话, 无视是否隐藏对话式删除
 
         data = {
             'is_visible': False,
