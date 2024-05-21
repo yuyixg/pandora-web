@@ -524,38 +524,6 @@ class ChatGPT(API):
     def list_models(self, raw=False, token=None, web_origin=None, gpt35_model=None, gpt4_model=None):
         self.web_origin = web_origin
         OAI_FLAG = False
-        OAI_GPT4O_FLAG = False
-
-        # if not self.LOCAL_OP:
-        #     try:
-        #         url = '{}/backend-api/models?history_and_training_disabled=false'.format(self.__get_api_prefix())
-        #         resp = self.session.get(url=url, headers=self.__get_headers(token), **self.req_kwargs)
-
-        #         if resp.status_code == 200:
-        #             oai_result = resp.json()
-
-        #             # if self.OAI_ONLY:
-        #             #     return self.fake_resp(fake_data=json.dumps(oai_result, ensure_ascii=False))
-                    
-        #             OAI_FLAG = True
-
-        #             for item in oai_result['models']:
-        #                 if item['slug'] == 'gpt-4o':
-        #                     OAI_GPT4O_FLAG = True
-        #                     break
-
-        #         else:
-        #             Console.warn('list_models FAILED: resp.status_code={}'.format(str(resp.status_code))
-        #             + ' | Content-Type={}'.format(resp.headers.get('Content-Type')))
-        #             Console.warn('list_models FAILED: resp.text={}'.format(resp.text))
-            
-        #     except Exception as e:
-        #         error_detail = traceback.format_exc()
-        #         Console.debug(error_detail)
-        #         Console.warn('list_models FAILED: {}'.format(e))
-
-        #         if self.OAI_ONLY:
-        #             return
 
         result = {
             "models": [],
@@ -612,7 +580,8 @@ class ChatGPT(API):
 
 
         if not self.OAI_ONLY and API_DATA:
-            for item in API_DATA.values():
+            for alias in API_DATA.keys():
+                item = API_DATA[alias]
                 title = item['title']
                 slug = 'gpt-4o-api' if item['slug'] == 'gpt-4o' and not self.LOCAL_OP else item['slug']
                 description = item['description']
@@ -1687,34 +1656,38 @@ class ChatGPT(API):
             return None
 
     def __request_conversation(self, data, token=None, isolation_code=None):
-        if data['model'] in API_DATA:
+        model_alias = data['model']
+        if model_alias in API_DATA:
             # Console.warn('Request conversation: {}'.format(data['messages'][0]))
             if data.get('messages'):
                 action = data['action']
                 parts = data['messages'][0]['content']['parts']
                 attachments = data['messages'][0]['metadata'].get('attachments')
                 content = str(parts[0]) if len(parts) == 1 else str(parts[-1])
-                model = data['model']
+                # model = data['model']
                 message_id = data['messages'][0]['id']
             else:
                 action = data.get('action')
                 parts = data['prompt']
                 content = str(parts)
-                model = data['model']
+                # model = API_DATA[model].get('slug')
+                # model = data['model']
                 message_id = data['message_id']
                 attachments = None
             
+            model = model_alias  # 0521: 暂代
             conversation_id = data.get('conversation_id')
             prompt_model = API_DATA[model].get('prompt_model')
             prompt = API_DATA[model].get('prompt')
 
-            url = LocalConversation.get_url(model)
+            # url = LocalConversation.get_url(model)
+            url = API_DATA[model_alias].get('url')
             auth = LocalConversation.get_auth(model)
             headers = {'User-Agent': self.user_agent, 'Content-Type': 'application/json'}
             history_list = []
             fake_data = {
                 "messages": [],
-                "model": model,
+                "model": API_DATA[model].get('slug'),
                 "stream": True,
             } if 'gemini' not in model else {"contents":[]}
             # Console.warn('{} | {}'.format(model, auth))
@@ -1885,7 +1858,8 @@ class ChatGPT(API):
 
                 # 适配Cloudflare AI: text_gen_img
                 if model == 'stable-diffusion-xl-base-1.0' or model == 'dreamshaper-8-lcm' or model == 'stable-diffusion-xl-lightning':
-                    base_url = LocalConversation.get_url(model) if not LocalConversation.get_url(model).endswith('/') else LocalConversation.get_url(model)[:-1]
+                    # base_url = LocalConversation.get_url(model) if not LocalConversation.get_url(model).endswith('/') else LocalConversation.get_url(model)[:-1]
+                    base_url = API_DATA[model_alias].get('url') if not API_DATA[model_alias].get('url').endswith('/') else API_DATA[model_alias].get('url')[:-1]
                     img_url = base_url + '/' + API_DATA[model].get('image_model')
                     gen_img_data = {"prompt": content}
 

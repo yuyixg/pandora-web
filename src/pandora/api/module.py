@@ -42,8 +42,8 @@ class LocalConversation:
                     yield auth
 
         # Console.warn('Your API Config:')
-        for item in API_DATA.values():
-            slug = item['slug']
+        for alias in API_DATA.keys():
+            item = API_DATA[alias]
 
             if item['url'].find('<Your Google AI Key>') != -1:
                 item['url'] = item['url'].replace('<Your Google AI Key>', getenv('GOOGLE_KEY'))
@@ -52,24 +52,24 @@ class LocalConversation:
                 item['url'] = item['url'].replace('<Your Cloudflare Account ID>', getenv('CF_ID'))
 
             if item['url'].find('<REPLACE>') != -1:
-                item['url'] = item['url'].replace('<REPLACE>', getenv(slug+'_REPLACE'))
+                item['url'] = item['url'].replace('<REPLACE>', getenv(alias+'_REPLACE'))
 
-            os.environ[slug + '_URL'] = item['url']
+            os.environ[alias + '_URL'] = item['url']
             # Console.debug_b('{}  |  URL  |  {}'.format(slug, item['url']))
             if item.get('auth'):
                 # os.environ[slug + '_AUTH'] = item['auth']
                 # Console.debug_b('{}  |  AUTH  |  {}'.format(slug, item['auth'] if not isinstance(item['auth'], list) else ', '.join(item['auth'])))
 
                 if isinstance(item['auth'], list):
-                    API_AUTH_DATA[slug] = __auth_generator(item['auth'])
+                    API_AUTH_DATA[alias] = __auth_generator(item['auth'])
                 else:
-                    API_AUTH_DATA[slug] = __auth_generator([item['auth']])
+                    API_AUTH_DATA[alias] = __auth_generator([item['auth']])
 
-            elif getenv(slug+'_AUTH'):
-                auth = getenv(slug+'_AUTH')
+            elif getenv(alias+'_AUTH'):
+                auth = getenv(alias+'_AUTH')
                 if auth:
                     auth_list = auth.split(',')
-                    API_AUTH_DATA[slug] = __auth_generator(auth_list)
+                    API_AUTH_DATA[alias] = __auth_generator(auth_list)
         
 
     @staticmethod
@@ -558,7 +558,8 @@ class LocalConversation:
             with open(API_CONFIG_FILE, 'r', encoding='utf-8') as f:
                     API_DATA = json.load(f)
 
-                    for item in API_DATA.values():
+                    for alias in API_DATA.keys():
+                        item = API_DATA[alias]
                         model_title = item['title']
                         model_description = item['description']
                         model_max_tokens = item['max_tokens']
