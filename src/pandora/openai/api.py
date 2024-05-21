@@ -583,7 +583,7 @@ class ChatGPT(API):
             for alias in API_DATA.keys():
                 item = API_DATA[alias]
                 title = item['title']
-                slug = 'gpt-4o-api' if item['slug'] == 'gpt-4o' and not self.LOCAL_OP else item['slug']
+                slug = 'gpt-4o-api' if item['slug'] == 'gpt-4o' and not self.LOCAL_OP else alias
                 description = item['description']
                 max_tokens = item['max_tokens']
 
