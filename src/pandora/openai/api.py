@@ -99,6 +99,7 @@ class API:
     async def __process_sse(self, resp, conversation_id=None, message_id=None, model=None, action=None, prompt=None, isolation_code=None):
         if resp.status_code != 200:
             Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + f'Model: {model} | Status_Code: {str(resp.status_code)}')
+            Console.warn(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' | ' + f'Resp: {str(resp.text)}')
             yield await self.__process_sse_except(resp)
             return
         
@@ -342,10 +343,9 @@ class API:
                             "http": proxy_url,
                             "https": proxy_url,
                         }if 'proxy' in API_DATA[model] else None
-                
         try:
             async with requests.AsyncSession(verify=self.ca_bundle, proxies=proxy if proxy else self.proxy, impersonate='chrome110') as client:
-                async with client.stream('POST', url, json=data, headers=headers, timeout=60 if not self.req_timeout else self.req_timeout) as resp:
+                async with client.stream('POST', url, json=data, headers=headers, timeout=60 if not self.req_timeout else self.req_timeout, http_version=1) as resp:
                     async for line in self.__process_sse(resp, conversation_id, message_id, model, action, prompt, isolation_code):
                         queue.put(line)
 
@@ -1923,7 +1923,7 @@ class ChatGPT(API):
 
                 fake_data['messages'].append({"role": "user", "content": content})
                 
-            
+
             return self._request_sse(url, headers, fake_data, conversation_id, message_id, model, action, content)
 
         # if talk:
