@@ -6,7 +6,7 @@ from os.path import join, abspath, dirname
 from os import getenv
 
 import json
-from flask import Flask, jsonify, make_response, request, Response, render_template, redirect, session, send_from_directory
+from flask import Flask, jsonify, make_response, request, Response, render_template, redirect, session, send_from_directory, url_for
 from flask_cors import CORS
 from flask_session import Session
 from waitress import serve
@@ -39,6 +39,28 @@ class ChatBot:
 
         hook_logging(level=self.log_level, format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
         self.logger = logging.getLogger('waitress')
+
+    def log(self, date, ip, msg):   
+        # 获取IP位置
+        # url = "https://whois.pconline.com.cn/ipJson.jsp?ip=" + str(ip)
+        # res = requests.get(url).text
+        # if res:
+        #     result_step1 = res.split('(', 2)[-1]
+        #     result = result_step1.rsplit(')', 1)[0]
+        #     addr = json.loads(result).get("addr")
+        
+        # 当请求内容长度大于50时截取
+        if len(msg) >50 :
+            msg = msg[:50] + "..."
+
+        # 组装log文本
+        """
+        时间 |   IP |   内容[:50]
+        """
+        content = date + " |   " + ip + " |   " + msg
+
+        with open(file=USER_CONFIG_DIR + '/login_failed.log', mode='a', encoding="utf-8") as f:
+            f.write(content + '\n')
 
     def run(self, bind_str, threads=8):
         host, port = self.__parse_bind(bind_str)
@@ -163,6 +185,18 @@ class ChatBot:
         # app.route('/chat')(self.chat)
         # app.route('/chat/<conversation_id>')(self.chat)
 
+        self.route_whiteList = ['/backend-api/accounts/check/v4-2023-04-27', '/backend-api/me', '/backend-api/settings/user', '/backend-api/lat/tti']
+
+        @app.before_request
+        def require_login():
+            path = request.path
+            if not session.get("logged_in") and self.SITE_PASSWORD != 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD' and path.startswith('/backend-api') and path not in self.route_whiteList:
+                ip = request.remote_addr
+                Console.warn("IP: {} | Not logged in | Path: {}".format(ip, path))
+                self.log(datetime.strftime(datetime.now(),'%Y/%m/%d %H:%M:%S'), ip, 'Not logged in |   Path: ' + path)
+                
+                return redirect("/login")
+
         if not self.debug:
             self.logger.warning('Serving on http://{}:{}'.format(host, port))
 
@@ -174,6 +208,8 @@ class ChatBot:
         resp.headers['X-Server'] = 'pandora/{}'.format(__version__)
 
         return resp
+    
+    
 
     def __parse_bind(self, bind_str):
         sections = bind_str.split(':', 2)
@@ -213,28 +249,6 @@ class ChatBot:
     @staticmethod
     def __get_token_key():
         return request.headers.get('X-Use-Token', request.cookies.get('token-key'))
-    
-    def log(self,date, ip, msg):   
-        # 获取IP位置
-        # url = "https://whois.pconline.com.cn/ipJson.jsp?ip=" + str(ip)
-        # res = requests.get(url).text
-        # if res:
-        #     result_step1 = res.split('(', 2)[-1]
-        #     result = result_step1.rsplit(')', 1)[0]
-        #     addr = json.loads(result).get("addr")
-        
-        # 当请求内容长度大于50时截取
-        if len(msg) >50 :
-            msg = msg[:50] + "..."
-
-        # 组装log文本
-        """
-        时间 |   IP |   内容[:50]
-        """
-        content = date + " |   " + ip + " |   " + msg
-
-        with open(file=USER_CONFIG_DIR + '/login_failed.log', mode='a', encoding="utf-8") as f:
-            f.write(content + '\n')
     
     def login(self):
         if request.method == "POST":

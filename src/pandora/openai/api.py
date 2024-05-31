@@ -992,7 +992,7 @@ class ChatGPT(API):
                 'Accept': 'application/json, text/plain, */*',
                 'Accept-Encoding': 'gzip, deflate, br, zstd',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Authorization': 'Bearer ' + self.get_access_token(token),
+                # 'Authorization': 'Bearer ' + self.get_access_token(token),
                 'Cache-Control': 'no-cache',
                 'Content-Type': file_type,
                 'Origin': 'https://chatgpt.com',
@@ -1782,7 +1782,13 @@ class ChatGPT(API):
             elif action != 'variant':
                 if not data.get('conversation_id'):
                     # Console.debug_b('No conversation_id, create and save user conversation.')
-                    conversation_id = str(uuid.uuid4())
+                    if API_DATA[model].get('getConvIDUrl'):
+                        getConvIDUrl = API_DATA[model].get('getConvIDUrl')
+                        get_conversation_id = self.session.get(url=getConvIDUrl, headers=headers, **self.req_kwargs)
+                        if get_conversation_id.status_code == 200:
+                            conversation_id = get_conversation_id.json()['conversation_id']
+                    else: 
+                        conversation_id = str(uuid.uuid4())
                     LocalConversation.create_conversation(conversation_id, content, datetime.now(tzutc()).isoformat(), isolation_code)
                 
             LocalConversation.save_conversation(conversation_id, message_id, content, 'user', datetime.now(tzutc()).isoformat(), model, action)
