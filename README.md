@@ -383,8 +383,8 @@
   
   ```
   location / {
-              proxy_http_version 	1.1;
-              proxy_pass 		http://IP:Port;
+          proxy_http_version 	1.1;
+          proxy_pass 		http://IP:Port;
       		proxy_set_header	Connection		"";
       		proxy_set_header   	Host			$http_host;
       		proxy_set_header 	X-Forwarded-Proto 	$scheme;
@@ -394,16 +394,16 @@
       		proxy_buffering off;
       		proxy_cache off;
       		chunked_transfer_encoding on;
-              tcp_nopush on;
-              tcp_nodelay on;
+          tcp_nopush on;
+          tcp_nodelay on;
       		
       		send_timeout 600;
       		proxy_connect_timeout 600;
       		proxy_send_timeout 600;
       		proxy_read_timeout 600;
       		proxy_headers_hash_max_size 51200;
-              proxy_headers_hash_bucket_size 6400;
-  }
+          proxy_headers_hash_bucket_size 6400;
+}
   ```
 
 
