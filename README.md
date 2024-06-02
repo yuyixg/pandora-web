@@ -258,7 +258,7 @@
 >
 > `键值`: 可为同模型不同来源而作区分
 >
-> `slug`: 请求时的模型名~~(请与键值保持一致)~~
+> `slug`: 请求时的模型名 ~~(请与键值保持一致)~~
 >
 > `url`: 模型请求的url
 >
@@ -382,30 +382,29 @@
 - Nginx 反向代理配置
   
   ```
-  location / {
-          proxy_http_version 	1.1;
-          proxy_pass 		http://IP:Port;
-      		proxy_set_header	Connection		"";
-      		proxy_set_header   	Host			$http_host;
-      		proxy_set_header 	X-Forwarded-Proto 	$scheme;
-      		proxy_set_header   	X-Real-IP          	$remote_addr;
-      		proxy_set_header   	X-Forwarded-For    	$proxy_add_x_forwarded_for;
-      		
-      		proxy_buffering off;
-      		proxy_cache off;
-      		chunked_transfer_encoding on;
-          tcp_nopush on;
-          tcp_nodelay on;
-      		
-      		send_timeout 600;
-      		proxy_connect_timeout 600;
-      		proxy_send_timeout 600;
-      		proxy_read_timeout 600;
-      		proxy_headers_hash_max_size 51200;
-          proxy_headers_hash_bucket_size 6400;
-}
+    location / {
+            proxy_http_version 	1.1;
+            proxy_pass 		http://IP:Port;
+        		proxy_set_header	Connection		"";
+        		proxy_set_header   	Host			$http_host;
+        		proxy_set_header 	X-Forwarded-Proto 	$scheme;
+        		proxy_set_header   	X-Real-IP          	$remote_addr;
+        		proxy_set_header   	X-Forwarded-For    	$proxy_add_x_forwarded_for;
+        		
+        		proxy_buffering off;
+        		proxy_cache off;
+        		chunked_transfer_encoding on;
+            tcp_nopush on;
+            tcp_nodelay on;
+        		
+        		send_timeout 600;
+        		proxy_connect_timeout 600;
+        		proxy_send_timeout 600;
+        		proxy_read_timeout 600;
+        		proxy_headers_hash_max_size 51200;
+            proxy_headers_hash_bucket_size 6400;
+    }
   ```
-
 
 
 
@@ -417,8 +416,6 @@
 * 本人的代码水平太过糟糕，在此表示抱歉
 
 * 最近这段时间除非重要Bug外可能实在没空维护
-
-
 
 
 
