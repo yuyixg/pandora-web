@@ -92,11 +92,12 @@ class ChatBot:
         else:
             app.config["SESSION_TYPE"] = "filesystem"
             app.config["SESSION_FILE_DIR"] = USER_CONFIG_DIR + '/sessions_isolated' if self.ISOLATION_FLAG == 'True' else USER_CONFIG_DIR + '/sessions'
+            Session(app)
 
         # dev
         # app.config['TEMPLATES_AUTO_RELOAD'] = True
         
-        Session(app)
+        
 
         CORS(app, resources={r'/api/*': {'supports_credentials': True, 'expose_headers': [
             'Content-Type',
