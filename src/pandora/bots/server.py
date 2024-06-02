@@ -6,7 +6,7 @@ from os.path import join, abspath, dirname
 from os import getenv
 
 import json
-from flask import Flask, jsonify, make_response, request, Response, render_template, redirect, session, send_from_directory, url_for
+from flask import Flask, jsonify, make_response, request, Response, render_template, redirect, session, send_from_directory
 from flask_cors import CORS
 from flask_session import Session
 from waitress import serve
@@ -82,12 +82,14 @@ class ChatBot:
                 
             return e
 
+        app.secret_key = 'PandoraWeb'
+
         if self.SITE_PASSWORD == 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
             Console.warn('### You have not set the site password, which is very dangerous!')
             Console.warn('### You have not set the site password, which is very dangerous!')
             Console.warn('### You have not set the site password, which is very dangerous!')
+            app.config["SESSION_TYPE"] = "null"
         else:
-            app.secret_key = 'PandoraWeb'
             app.config["SESSION_TYPE"] = "filesystem"
             app.config["SESSION_FILE_DIR"] = USER_CONFIG_DIR + '/sessions_isolated' if self.ISOLATION_FLAG == 'True' else USER_CONFIG_DIR + '/sessions'
 
@@ -153,8 +155,8 @@ class ChatBot:
 
         if self.SITE_PASSWORD != 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
             app.route('/login', methods=['GET', 'POST'])(self.login)
-            # app.route('/login2', methods=['GET', 'POST'])(self.login2)
-            app.route('/auth/logout')(self.logout)
+            
+        app.route('/auth/logout')(self.logout)
         
         app.route('/')(self.chat)
         app.route('/chat')(self.chat)
@@ -194,7 +196,7 @@ class ChatBot:
                 ip = request.remote_addr
                 Console.warn("IP: {} | Not logged in | Path: {}".format(ip, path))
                 self.log(datetime.strftime(datetime.now(),'%Y/%m/%d %H:%M:%S'), ip, 'Not logged in |   Path: ' + path)
-                
+
                 return redirect("/login")
 
         if not self.debug:
@@ -228,7 +230,7 @@ class ChatBot:
                 ip = request.headers['X-Forwarded-For'].split(',')[0].strip()
         path = request.path
 
-        if not (path.startswith('/widget') or path.startswith('/backend-api') or path.startswith('/c/') or path.startswith('/_next') or path.startswith('/v1/initialize') or path.startswith('/auth/js/main.92bf7bcd.js.map')):
+        if not (path.startswith('/widget') or path.startswith('/backend-api/aip') or path.startswith('/c/') or path.startswith('/v1/initialize') or path.startswith('/auth/js/main.92bf7bcd.js.map') or path == '/ces/v1/projects/oai/settings' or path == '/_next/static/chunks/3472.d3ee6c3b89fde6d7.js'):
             self.logger.error('{}  |  {}  |  {}'.format(ip, path, str(e)))
 
         if request.path.startswith('/c/') and request.method == 'GET':
@@ -292,16 +294,16 @@ class ChatBot:
                 
                 return render_template("login_new.html", pandora_base=request.url_root.strip('/login'))
         
-    def login2(self):
-        return render_template("login_new.html", pandora_base=request.url_root.strip('/login2'))
-        
     def logout(self):
-        # 退出登录时，移除 session 中的登录状态
-        session.pop("logged_in", None)
-        if self.ISOLATION_FLAG == 'True':
-            session.pop("isolation_code", None)
+        if self.SITE_PASSWORD != 'I_KNOW_THE_RISKS_AND_STILL_NO_SITE_PASSWORD':
+            # 退出登录时，移除 session 中的登录状态
+            session.pop("logged_in", None)
+            if self.ISOLATION_FLAG == 'True':
+                session.pop("isolation_code", None)
 
-        return redirect("/login")
+            return redirect("/login")
+        
+        return redirect("/")
     
 
     def chat(self, conversation_id=None):
